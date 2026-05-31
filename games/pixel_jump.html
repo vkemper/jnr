@@ -6,7 +6,7 @@
     <title>Super Pixel Jump - JNR</title>
     <style>
         body {
-            background-color: #333;
+            background-color: #222;
             color: #fff;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
@@ -15,30 +15,30 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
+            background: linear-gradient(to bottom, #111, #333);
         }
         canvas {
-            background-color: #87CEEB;
-            border: 4px solid #fff;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            background-color: #5abff0;
+            border: 8px solid #000;
+            image-rendering: pixelated;
+        }
+        .ui {
+            margin-top: 15px;
+            font-size: 1.5rem;
+            color: #ffa300;
         }
         .back-link {
-            margin-top: 20px;
-            color: #fff;
+            margin-top: 10px;
+            color: #aaa;
             text-decoration: none;
-            border: 2px solid #fff;
-            padding: 5px 10px;
-        }
-        .back-link:hover {
-            background-color: #fff;
-            color: #333;
+            font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
-    <h1>SUPER PIXEL JUMP</h1>
+    <div class="ui">LEVEL <span id="levelNum">1</span> | COINS <span id="coinCount">0</span>/5</div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
-    <div id="ui" style="margin-top: 10px;">Coins: <span id="coinCount">0</span></div>
-    <a href="../index.html" class="back-link">BACK TO MENU</a>
+    <a href="../index.html" class="back-link">ESC TO MENU</a>
 
     <script src="../js/engine.js"></script>
     <script>
@@ -51,7 +51,6 @@
             update(game) {
                 super.update(game);
 
-                // Better platform collision
                 game.entities.forEach(entity => {
                     if (entity instanceof Platform) {
                         if (this.vy > 0 &&
@@ -66,8 +65,12 @@
                     }
                     if (entity instanceof Coin && this.collidesWith(entity)) {
                         this.coins++;
+                        game.playCoinSound();
                         document.getElementById('coinCount').innerText = this.coins;
                         entity.collected = true;
+                        if (this.coins >= 5) {
+                            game.winLevel();
+                        }
                     }
                 });
             }
@@ -75,42 +78,98 @@
 
         class Coin extends Entity {
             constructor(x, y) {
-                super(x, y, 15, 15, '#ffec27');
+                super(x, y, 20, 20, '#ffec27');
                 this.collected = false;
+                this.bob = 0;
             }
-            update() {}
+            update(game, deltaTime) {
+                this.bob += deltaTime * 0.005;
+                this.yOffset = Math.sin(this.bob) * 5;
+            }
             draw(ctx) {
                 if (this.collected) return;
+                ctx.fillStyle = '#ffa300';
+                ctx.beginPath();
+                ctx.arc(this.x + 10, this.y + 10 + (this.yOffset || 0), 10, 0, Math.PI*2);
+                ctx.fill();
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
-                ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width/2, 0, Math.PI*2);
+                ctx.arc(this.x + 10, this.y + 10 + (this.yOffset || 0), 7, 0, Math.PI*2);
                 ctx.fill();
             }
         }
 
-        const game = new Game('gameCanvas');
-        const player = new PixelPlayer(50, 300);
+        class PixelGame extends Game {
+            constructor() {
+                super('gameCanvas');
+                this.loadLevel(1);
+            }
 
-        game.entities.push(new Platform(0, 380, 800, 20, '#5f574f')); // Floor
-        game.entities.push(new Platform(150, 300, 100, 20, '#ab9b8e'));
-        game.entities.push(new Platform(300, 220, 100, 20, '#ab9b8e'));
-        game.entities.push(new Platform(450, 300, 100, 20, '#ab9b8e'));
-        game.entities.push(new Platform(600, 150, 150, 20, '#ab9b8e'));
+            loadLevel(num) {
+                this.level = num;
+                this.entities = [];
+                this.state = 'playing';
+                document.getElementById('levelNum').innerText = num;
+                document.getElementById('coinCount').innerText = '0';
 
-        game.entities.push(new Coin(190, 270));
-        game.entities.push(new Coin(340, 190));
-        game.entities.push(new Coin(490, 270));
-        game.entities.push(new Coin(670, 120));
+                const player = new PixelPlayer(50, 300);
+                this.entities.push(player);
 
-        game.entities.push(player);
+                if (num === 1) {
+                    this.canvas.style.backgroundColor = '#5abff0';
+                    // Easier level 1
+                    this.entities.push(new Platform(0, 380, 800, 20, '#29adff')); // Floor
+                    this.entities.push(new Platform(150, 300, 150, 20, '#00e436'));
+                    this.entities.push(new Platform(350, 220, 150, 20, '#00e436'));
+                    this.entities.push(new Platform(550, 140, 150, 20, '#00e436'));
 
-        // Filter out collected coins
-        const originalUpdate = game.update.bind(game);
-        game.update = function(deltaTime) {
-            originalUpdate(deltaTime);
-            this.entities = this.entities.filter(e => !(e instanceof Coin && e.collected));
-        };
+                    this.entities.push(new Coin(200, 260));
+                    this.entities.push(new Coin(400, 180));
+                    this.entities.push(new Coin(600, 100));
+                    this.entities.push(new Coin(100, 340));
+                    this.entities.push(new Coin(700, 340));
+                } else {
+                    this.canvas.style.backgroundColor = '#ff77a8';
+                    // Harder level 2
+                    this.entities.push(new Platform(0, 380, 200, 20, '#ff004d'));
+                    this.entities.push(new Platform(300, 300, 100, 20, '#ff004d'));
+                    this.entities.push(new Platform(500, 220, 100, 20, '#ff004d'));
+                    this.entities.push(new Platform(700, 140, 100, 20, '#ff004d'));
+                    this.entities.push(new Platform(150, 100, 100, 20, '#ff004d'));
 
+                    this.entities.push(new Coin(340, 260));
+                    this.entities.push(new Coin(540, 180));
+                    this.entities.push(new Coin(740, 100));
+                    this.entities.push(new Coin(190, 60));
+                    this.entities.push(new Coin(50, 340));
+                }
+            }
+
+            winLevel() {
+                this.playWinSound();
+                if (this.level === 1) {
+                    this.state = 'won';
+                    setTimeout(() => {
+                        this.loadLevel(2);
+                    }, 2000);
+                } else {
+                    this.state = 'won';
+                }
+            }
+
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.entities = this.entities.filter(e => !(e instanceof Coin && e.collected));
+            }
+        }
+
+        const game = new PixelGame();
+        document.body.addEventListener('keydown', () => {
+            game.startMusic([
+                {f: 261.63, d: 0.4}, {f: 329.63, d: 0.4}, {f: 392.00, d: 0.4}, {f: 523.25, d: 0.8},
+                {f: 392.00, d: 0.4}, {f: 329.63, d: 0.4}, {f: 261.63, d: 0.8}
+            ]);
+        }, { once: true });
         game.start();
     </script>
 </body>
