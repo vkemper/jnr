@@ -6,7 +6,7 @@
     <title>Super Pixel Jump - JNR</title>
     <style>
         body {
-            background-color: #222;
+            background-color: #000;
             color: #fff;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
@@ -15,193 +15,185 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
-            background: linear-gradient(to bottom, #111, #333);
+            overflow: hidden;
         }
         canvas {
-            background-color: #5abff0;
-            border: 8px solid #000;
-            image-rendering: pixelated;
+            background-color: #87CEEB;
+            border: 4px solid #333;
         }
         .ui {
-            margin-top: 15px;
-            font-size: 1.5rem;
-            color: #ffa300;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            color: #fff;
+            text-shadow: 2px 2px #000;
         }
         .back-link {
             margin-top: 10px;
-            color: #aaa;
+            color: #444;
             text-decoration: none;
             font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
-    <div class="ui">LEVEL <span id="levelNum">1</span> | COINS <span id="coinCount">0</span>/5</div>
+    <div class="ui">LEVEL: <span id="level">1</span> | COINS: <span id="coins">0</span></div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
     <script src="../js/engine.js"></script>
     <script>
-        class PixelPlayer extends Player {
-            constructor(x, y) {
-                super(x, y, '#ff004d');
-                this.coins = 0;
-                this.frame = 0;
+        class Player extends Entity {
+            constructor() {
+                super(50, 300, 30, 40, '#ffcc00');
+                this.jumpForce = -12;
+                this.speed = 5;
             }
-
             update(game) {
-                super.update(game);
-                this.frame += 0.1;
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.vx = -this.speed;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.vx = this.speed;
 
-                game.entities.forEach(entity => {
-                    if (entity instanceof Platform) {
+                if ((game.keys['ArrowUp'] || game.keys['Space'] || game.keys['KeyW']) && this.onGround) {
+                    this.vy = this.jumpForce;
+                    this.onGround = false;
+                    game.playSound(400, 0.1, 'sine');
+                }
+
+                super.update(game);
+
+                // Platform collision
+                game.entities.forEach(e => {
+                    if (e instanceof Platform) {
                         if (this.vy > 0 &&
-                            this.y + this.height <= entity.y + this.vy &&
-                            this.y + this.height + this.vy >= entity.y &&
-                            this.x + this.width > entity.x &&
-                            this.x < entity.x + entity.width) {
-                            this.y = entity.y - this.height;
+                            this.y + this.height <= e.y + this.vy &&
+                            this.y + this.height + this.vy >= e.y &&
+                            this.x + this.width > e.x &&
+                            this.x < e.x + e.width) {
+                            this.y = e.y - this.height;
                             this.vy = 0;
                             this.onGround = true;
                         }
                     }
-                    if (entity instanceof Coin && this.collidesWith(entity)) {
-                        this.coins++;
-                        game.playCoinSound();
-                        document.getElementById('coinCount').innerText = this.coins;
-                        entity.collected = true;
-                        if (this.coins >= 5) {
-                            game.winLevel();
-                        }
+                });
+
+                // Level completion
+                if (this.x > game.width - 50) {
+                    game.nextLevel();
+                }
+
+                // Collect coins
+                game.entities.forEach(e => {
+                    if (e instanceof Coin && this.collidesWith(e)) {
+                        e.markedForDeletion = true;
+                        game.score++;
+                        document.getElementById('coins').innerText = game.score;
+                        game.playSound(800, 0.05, 'sine');
                     }
                 });
             }
-
             draw(ctx) {
-                const walk = Math.sin(this.frame) * 5;
                 ctx.fillStyle = this.color;
                 // Body
                 ctx.fillRect(this.x, this.y, this.width, this.height);
-                // Eyes
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(this.x + 20, this.y + 5, 8, 8);
-                ctx.fillStyle = '#000';
-                ctx.fillRect(this.x + 24, this.y + 7, 4, 4);
                 // Cap
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(this.x - 2, this.y, this.width + 10, 8);
+                // Eye
                 ctx.fillStyle = '#000';
-                ctx.fillRect(this.x - 2, this.y, 36, 5);
-                // Feet
-                ctx.fillStyle = '#333';
-                if (!this.onGround) {
-                    ctx.fillRect(this.x + 5, this.y + 32, 10, 5);
-                    ctx.fillRect(this.x + 18, this.y + 32, 10, 5);
-                } else {
-                    ctx.fillRect(this.x + 5 + walk, this.y + 32, 10, 5);
-                    ctx.fillRect(this.x + 18 - walk, this.y + 32, 10, 5);
-                }
+                ctx.fillRect(this.x + 20, this.y + 12, 4, 4);
+                // Overall
+                ctx.fillStyle = '#00f';
+                ctx.fillRect(this.x, this.y + 25, this.width, 15);
+            }
+        }
+
+        class Platform extends Entity {
+            constructor(x, y, w, h) {
+                super(x, y, w, h, '#8B4513');
+            }
+            update() {} // Platforms don't move or fall
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.fillStyle = '#228B22';
+                ctx.fillRect(this.x, this.y, this.width, 10);
             }
         }
 
         class Coin extends Entity {
             constructor(x, y) {
-                super(x, y, 20, 20, '#ffec27');
-                this.collected = false;
-                this.bob = 0;
+                super(x, y, 15, 15, '#ffd700');
             }
-            update(game, deltaTime) {
-                this.bob += deltaTime * 0.005;
-                this.yOffset = Math.sin(this.bob) * 5;
-            }
+            update() {} // Coins stay in place
             draw(ctx) {
-                if (this.collected) return;
-                ctx.fillStyle = '#ffa300';
-                ctx.beginPath();
-                ctx.arc(this.x + 10, this.y + 10 + (this.yOffset || 0), 10, 0, Math.PI*2);
-                ctx.fill();
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
-                ctx.arc(this.x + 10, this.y + 10 + (this.yOffset || 0), 7, 0, Math.PI*2);
+                ctx.arc(this.x + 7, this.y + 7, 7, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.strokeStyle = '#daa520';
+                ctx.stroke();
             }
         }
 
         class PixelGame extends Game {
             constructor() {
                 super('gameCanvas');
-                this.loadLevel(1);
+                this.level = 1;
+                this.score = 0;
+                this.setupLevel();
+                this.clouds = Array.from({length: 5}, () => ({
+                    x: Math.random() * 800,
+                    y: 50 + Math.random() * 100,
+                    s: 0.2 + Math.random() * 0.5
+                }));
             }
-
-            loadLevel(num) {
-                this.level = num;
-                this.entities = [];
-                this.state = 'playing';
-                document.getElementById('levelNum').innerText = num;
-                document.getElementById('coinCount').innerText = '0';
-
-                const player = new PixelPlayer(50, 300);
-                this.entities.push(player);
-
-                if (num === 1) {
-                    this.canvas.style.backgroundColor = '#5abff0';
-                    this.entities.push(new Platform(0, 380, 800, 20, '#29adff')); // Floor
-                    this.entities.push(new Platform(150, 300, 150, 20, '#00e436'));
-                    this.entities.push(new Platform(350, 220, 150, 20, '#00e436'));
-                    this.entities.push(new Platform(550, 140, 150, 20, '#00e436'));
-
-                    this.entities.push(new Coin(200, 260));
-                    this.entities.push(new Coin(400, 180));
-                    this.entities.push(new Coin(600, 100));
-                    this.entities.push(new Coin(100, 340));
-                    this.entities.push(new Coin(700, 340));
-                } else {
-                    this.canvas.style.backgroundColor = '#7e2553';
-                    // Level 2 fix: lower platforms
-                    this.entities.push(new Platform(0, 380, 200, 20, '#ff004d'));
-                    this.entities.push(new Platform(250, 320, 120, 20, '#ff004d'));
-                    this.entities.push(new Platform(450, 240, 120, 20, '#ff004d'));
-                    this.entities.push(new Platform(650, 180, 120, 20, '#ff004d'));
-                    this.entities.push(new Platform(300, 130, 150, 20, '#ff004d'));
-
-                    this.entities.push(new Coin(280, 280));
-                    this.entities.push(new Coin(480, 200));
-                    this.entities.push(new Coin(680, 140));
-                    this.entities.push(new Coin(350, 90));
-                    this.entities.push(new Coin(50, 340));
-                }
-            }
-
-            winLevel() {
-                this.playWinSound();
+            setupLevel() {
+                this.entities = [new Player()];
                 if (this.level === 1) {
-                    this.state = 'won';
-                    setTimeout(() => {
-                        this.loadLevel(2);
-                    }, 2000);
+                    this.entities.push(new Platform(0, 350, 200, 50));
+                    this.entities.push(new Platform(250, 280, 150, 20));
+                    this.entities.push(new Platform(450, 200, 150, 20));
+                    this.entities.push(new Platform(650, 300, 150, 100));
+                    this.entities.push(new Coin(300, 240));
+                    this.entities.push(new Coin(500, 160));
                 } else {
-                    this.state = 'won';
+                    this.entities.push(new Platform(0, 350, 100, 50));
+                    this.entities.push(new Platform(150, 250, 100, 20));
+                    this.entities.push(new Platform(300, 180, 100, 20));
+                    this.entities.push(new Platform(480, 250, 100, 20));
+                    this.entities.push(new Platform(650, 320, 150, 80));
+                    this.entities.push(new Coin(190, 210));
+                    this.entities.push(new Coin(340, 140));
+                    this.entities.push(new Coin(520, 210));
                 }
             }
-
+            nextLevel() {
+                this.level++;
+                if (this.level > 2) {
+                    this.state = 'won';
+                    this.playSound(600, 0.5, 'sine');
+                } else {
+                    document.getElementById('level').innerText = this.level;
+                    this.setupLevel();
+                }
+            }
             update(deltaTime) {
                 super.update(deltaTime);
-                this.entities = this.entities.filter(e => !(e instanceof Coin && e.collected));
+                this.entities = this.entities.filter(e => !e.markedForDeletion);
+                this.clouds.forEach(c => {
+                    c.x -= c.s;
+                    if (c.x < -100) c.x = 850;
+                });
             }
-
             draw() {
-                // Background clouds
-                this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                this.ctx.beginPath();
-                this.ctx.arc(100, 100, 30, 0, Math.PI*2);
-                this.ctx.arc(130, 100, 40, 0, Math.PI*2);
-                this.ctx.arc(170, 100, 30, 0, Math.PI*2);
-                this.ctx.fill();
-
-                this.ctx.beginPath();
-                this.ctx.arc(500, 50, 20, 0, Math.PI*2);
-                this.ctx.arc(530, 50, 30, 0, Math.PI*2);
-                this.ctx.arc(560, 50, 20, 0, Math.PI*2);
-                this.ctx.fill();
-
+                // Clouds
+                this.ctx.fillStyle = '#fff';
+                this.clouds.forEach(c => {
+                    this.ctx.beginPath();
+                    this.ctx.arc(c.x, c.y, 20, 0, Math.PI*2);
+                    this.ctx.arc(c.x + 15, c.y - 10, 20, 0, Math.PI*2);
+                    this.ctx.arc(c.x + 30, c.y, 20, 0, Math.PI*2);
+                    this.ctx.fill();
+                });
                 super.draw();
             }
         }
@@ -209,8 +201,7 @@
         const game = new PixelGame();
         document.body.addEventListener('keydown', () => {
             game.startMusic([
-                {f: 261.63, d: 0.4}, {f: 329.63, d: 0.4}, {f: 392.00, d: 0.4}, {f: 523.25, d: 0.8},
-                {f: 392.00, d: 0.4}, {f: 329.63, d: 0.4}, {f: 261.63, d: 0.8}
+                {f: 261.63, d: 0.2}, {f: 329.63, d: 0.2}, {f: 392.00, d: 0.2}, {f: 523.25, d: 0.4}
             ]);
         }, { once: true });
         game.start();
