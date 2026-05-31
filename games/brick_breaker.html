@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brick Breaker - JNR</title>
+    <style>
+        body { background: #000; color: #fff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        canvas { background: #111; border: 4px solid #fff; }
+        .ui { margin-bottom: 10px; font-size: 1.2rem; color: #ffa300; }
+        .back-link { margin-top: 10px; color: #444; text-decoration: none; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="ui">SCORE: <span id="score">0</span> | BEST: <span id="best">0</span></div>
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+    <a href="../index.html" class="back-link">ESC TO MENU</a>
+
+    <script src="../js/engine.js"></script>
+    <script>
+        class Ball extends Entity {
+            constructor(x, y) {
+                super(x, y, 10, 10, '#fff');
+                this.vx = 4;
+                this.vy = -4;
+            }
+            update(game) {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > game.width - this.width) {
+                    this.vx *= -1;
+                    game.playSound(400, 0.05);
+                }
+                if (this.y < 0) {
+                    this.vy *= -1;
+                    game.playSound(400, 0.05);
+                }
+                if (this.y > game.height) {
+                    game.state = 'lost';
+                    game.playDeathSound();
+                }
+
+                if (this.collidesWith(game.paddle)) {
+                    this.vy = -Math.abs(this.vy);
+                    this.vx = (this.x + this.width / 2 - (game.paddle.x + game.paddle.width / 2)) / (game.paddle.width / 2) * 5;
+                    game.playSound(500, 0.05);
+                }
+
+                game.entities.forEach(e => {
+                    if (e instanceof Brick && this.collidesWith(e)) {
+                        this.vy *= -1;
+                        e.markedForDeletion = true;
+                        game.score += 20;
+                        document.getElementById('score').innerText = game.score;
+                        game.playSound(600, 0.05);
+                    }
+                });
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x + 5, this.y + 5, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class Brick extends Entity {
+            constructor(x, y, color) {
+                super(x, y, 50, 20, color);
+            }
+            update() {}
+        }
+
+        class Paddle extends Entity {
+            constructor() {
+                super(250, 370, 100, 15, '#ffa300');
+                this.speed = 8;
+            }
+            update(game) {
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
+                if (this.x < 0) this.x = 0;
+                if (this.x > game.width - this.width) this.x = game.width - this.width;
+            }
+        }
+
+        class BreakoutGame extends Game {
+            constructor() {
+                super('gameCanvas', { gravity: 0, friction: 1, gameId: 'brick_breaker' });
+                document.getElementById('best').innerText = this.highScore;
+                this.paddle = new Paddle();
+                this.entities.push(this.paddle);
+                this.entities.push(new Ball(300, 300));
+                const colors = ['#f00', '#f80', '#ff0', '#0f0', '#00f'];
+                for (let r = 0; r < 5; r++) {
+                    for (let c = 0; c < 10; c++) {
+                        this.entities.push(new Brick(20 + c * 56, 40 + r * 25, colors[r]));
+                    }
+                }
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.entities = this.entities.filter(e => !e.markedForDeletion);
+                if (this.entities.filter(e => e instanceof Brick).length === 0) {
+                    this.state = 'won';
+                }
+            }
+        }
+        const game = new BreakoutGame();
+        game.start();
+    </script>
+</body>
+</html>

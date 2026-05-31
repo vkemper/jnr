@@ -35,7 +35,7 @@
     </style>
 </head>
 <body>
-    <div class="ui">SCORE: <span id="score">0</span></div>
+    <div class="ui">SCORE: <span id="score">0</span> | BEST: <span id="best">0</span></div>
     <canvas id="gameCanvas" width="400" height="600"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
@@ -85,12 +85,17 @@
         }
 
         class Obstacle extends Entity {
-            constructor(x, speed) {
+            constructor(x, speed, isWiggly = false) {
                 super(x, -100, 40, 70, '#ff004d');
                 this.vy = speed;
+                this.isWiggly = isWiggly;
+                this.wigglePhase = Math.random() * Math.PI * 2;
             }
             update(game) {
                 this.y += this.vy;
+                if (this.isWiggly) {
+                    this.x += Math.sin(this.y / 50 + this.wigglePhase) * 2;
+                }
                 if (this.y > game.height) {
                     this.markedForDeletion = true;
                     game.score += 10;
@@ -109,23 +114,34 @@
 
         class RacerGame extends Game {
             constructor() {
-                super('gameCanvas', { gravity: 0, friction: 1 });
+                super('gameCanvas', { gravity: 0, friction: 1, gameId: 'neon_racer' });
+                document.getElementById('best').innerText = this.highScore;
                 this.score = 0;
                 this.spawnTimer = 0;
                 this.entities.push(new Car());
                 this.roadOffset = 0;
                 this.sideObjects = [];
+                this.timeElapsed = 0;
             }
             update(deltaTime) {
                 super.update(deltaTime);
+                this.timeElapsed += deltaTime;
                 this.spawnTimer += deltaTime;
-                if (this.spawnTimer > 1200) {
+
+                const difficultyFactor = Math.min(1, this.timeElapsed / 60000); // Max difficulty at 60s
+                const spawnInterval = 1200 - (difficultyFactor * 800); // 1200ms -> 400ms
+                const baseSpeed = 4 + (difficultyFactor * 6); // 4-8 -> 10-14
+
+                if (this.spawnTimer > spawnInterval) {
                     const x = 70 + Math.random() * (this.width - 140);
-                    this.entities.push(new Obstacle(x, 4 + Math.random() * 4));
+                    const isWiggly = difficultyFactor > 0.5 && Math.random() < difficultyFactor - 0.5;
+                    this.entities.push(new Obstacle(x, baseSpeed + Math.random() * 4, isWiggly));
                     this.spawnTimer = 0;
                 }
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
-                this.roadOffset = (this.roadOffset + 8) % 80;
+
+                const scrollSpeed = 8 + (difficultyFactor * 12);
+                this.roadOffset = (this.roadOffset + scrollSpeed) % 80;
 
                 if (Math.random() < 0.05) {
                     this.sideObjects.push({x: 15, y: -50, type: 'tree'});
@@ -135,10 +151,23 @@
                 this.sideObjects = this.sideObjects.filter(obj => obj.y < this.height);
             }
             draw() {
-                this.ctx.fillStyle = '#0a0';
+                // Background Gradient
+                const grad = this.ctx.createLinearGradient(0, 0, 0, this.height);
+                grad.addColorStop(0, '#001');
+                grad.addColorStop(1, '#005');
+                this.ctx.fillStyle = grad;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                this.ctx.fillStyle = '#141';
                 this.ctx.fillRect(0, 0, 50, this.height);
                 this.ctx.fillRect(this.width - 50, 0, 50, this.height);
-                this.ctx.fillStyle = '#444';
+
+                // Road with slight gradient
+                const roadGrad = this.ctx.createLinearGradient(50, 0, this.width-50, 0);
+                roadGrad.addColorStop(0, '#333');
+                roadGrad.addColorStop(0.5, '#444');
+                roadGrad.addColorStop(1, '#333');
+                this.ctx.fillStyle = roadGrad;
                 this.ctx.fillRect(50, 0, this.width - 100, this.height);
                 for(let i=-40; i<this.height; i+=40) {
                     const y = (i + this.roadOffset) % (this.height + 40) - 40;

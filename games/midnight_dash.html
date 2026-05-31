@@ -37,7 +37,7 @@
     </style>
 </head>
 <body>
-    <div class="hud">DASHES: <span id="dashCount">1</span> | GOAL: <span id="distance">500</span>m</div>
+    <div class="hud">DASHES: <span id="dashCount">1</span> | GOAL: <span id="distance">500</span>m | BEST: <span id="best">0</span></div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
@@ -134,7 +134,8 @@
             }
         }
 
-        const game = new Game('gameCanvas', { gravity: 0.6, friction: 0.9, hasFloor: false });
+        const game = new Game('gameCanvas', { gravity: 0.6, friction: 0.9, hasFloor: false, gameId: 'midnight_dash' });
+        document.getElementById('best').innerText = game.highScore;
         game.entities.push(new Platform(0, 350, 200, 10, '#4e4e4e'));
         game.entities.push(new Platform(250, 280, 150, 10, '#4e4e4e'));
         game.entities.push(new Platform(450, 220, 120, 10, '#4e4e4e'));

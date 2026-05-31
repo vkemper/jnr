@@ -13,6 +13,8 @@ class Game {
         this.isRunning = false;
         this.state = 'playing'; // 'playing', 'won', 'lost'
         this.score = 0;
+        this.gameId = options.gameId || 'default';
+        this.highScore = parseInt(localStorage.getItem(`jnr_highScore_${this.gameId}`)) || 0;
 
         window.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
@@ -49,6 +51,15 @@ class Game {
         this.playSound(100, 0.3, 'sawtooth');
     }
 
+    checkHighScore() {
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem(`jnr_highScore_${this.gameId}`, this.highScore);
+            return true;
+        }
+        return false;
+    }
+
     startMusic(melody) {
         const playNext = (index) => {
             if (!this.isRunning || this.state !== 'playing' || !this.audioCtx) return;
@@ -70,6 +81,7 @@ class Game {
         const deltaTime = timestamp - (this.lastTime || timestamp);
         this.lastTime = timestamp;
 
+        this.ctx.clearRect(0, 0, this.width, this.height);
         if (this.state === 'playing') {
             this.update(deltaTime);
         }
@@ -85,20 +97,27 @@ class Game {
     }
 
     draw() {
-        this.ctx.clearRect(0, 0, this.width, this.height);
         this.entities.forEach(entity => {
             entity.draw(this.ctx);
         });
 
         if (this.state !== 'playing') {
-            this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            this.checkHighScore();
+            this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
             this.ctx.fillRect(0, 0, this.width, this.height);
             this.ctx.fillStyle = '#fff';
             this.ctx.font = '40px Courier New';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(this.state === 'won' ? 'YOU WIN!' : 'GAME OVER', this.width / 2, this.height / 2);
+            this.ctx.fillText(this.state === 'won' ? 'YOU WIN!' : 'GAME OVER', this.width / 2, this.height / 2 - 20);
+
             this.ctx.font = '20px Courier New';
-            this.ctx.fillText('PRESS R TO RESTART', this.width / 2, this.height / 2 + 40);
+            this.ctx.fillStyle = '#ff0';
+            this.ctx.fillText(`SCORE: ${this.score}`, this.width / 2, this.height / 2 + 30);
+            this.ctx.fillStyle = '#0f0';
+            this.ctx.fillText(`HIGH SCORE: ${this.highScore}`, this.width / 2, this.height / 2 + 60);
+
+            this.ctx.fillStyle = '#fff';
+            this.ctx.fillText('PRESS R TO RESTART', this.width / 2, this.height / 2 + 100);
 
             if (this.keys['KeyR']) location.reload();
         }

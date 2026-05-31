@@ -36,7 +36,7 @@
     </style>
 </head>
 <body>
-    <div class="ui">LEVEL: <span id="level">1</span> | COINS: <span id="coins">0</span></div>
+    <div class="ui">LEVEL: <span id="level">1</span> | COINS: <span id="coins">0</span> | BEST: <span id="best">0</span></div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
@@ -136,8 +136,9 @@
 
         class PixelGame extends Game {
             constructor() {
-                super('gameCanvas');
+                super('gameCanvas', { gameId: 'pixel_jump' });
                 this.level = 1;
+                document.getElementById('best').innerText = this.highScore;
                 this.score = 0;
                 this.setupLevel();
                 this.clouds = Array.from({length: 5}, () => ({
@@ -164,11 +165,34 @@
                     this.entities.push(new Coin(190, 210));
                     this.entities.push(new Coin(340, 140));
                     this.entities.push(new Coin(520, 210));
+                } else if (this.level === 3) {
+                    this.entities.push(new Platform(0, 350, 80, 50));
+                    this.entities.push(new Platform(150, 280, 60, 20));
+                    this.entities.push(new Platform(300, 210, 60, 20));
+                    this.entities.push(new Platform(450, 140, 60, 20));
+                    this.entities.push(new Platform(600, 210, 60, 20));
+                    this.entities.push(new Platform(700, 300, 100, 100));
+                    this.entities.push(new Coin(170, 240));
+                    this.entities.push(new Coin(320, 170));
+                    this.entities.push(new Coin(470, 100));
+                    this.entities.push(new Coin(620, 170));
+                } else if (this.level === 4) {
+                    this.entities.push(new Platform(0, 350, 50, 50));
+                    this.entities.push(new Platform(120, 300, 50, 20));
+                    this.entities.push(new Platform(240, 250, 50, 20));
+                    this.entities.push(new Platform(360, 200, 50, 20));
+                    this.entities.push(new Platform(480, 150, 50, 20));
+                    this.entities.push(new Platform(600, 200, 50, 20));
+                    this.entities.push(new Platform(720, 300, 80, 100));
+                    this.entities.push(new Coin(135, 260));
+                    this.entities.push(new Coin(375, 160));
+                    this.entities.push(new Coin(615, 160));
+                    this.entities.push(new Coin(750, 260));
                 }
             }
             nextLevel() {
                 this.level++;
-                if (this.level > 2) {
+                if (this.level > 4) {
                     this.state = 'won';
                     this.playSound(600, 0.5, 'sine');
                 } else {
