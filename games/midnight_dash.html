@@ -43,23 +43,32 @@
 
     <script src="../js/engine.js"></script>
     <script>
-        class DashPlayer extends Player {
+        class DashPlayer extends Entity {
             constructor(x, y) {
-                super(x, y, '#e94560');
+                super(x, y, 30, 40, '#e94560');
                 this.canDash = true;
                 this.isDashing = false;
                 this.dashCooldown = 0;
                 this.targetDistance = 500;
                 this.traveled = 0;
+                this.speed = 5;
             }
 
             update(game, deltaTime) {
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.vx = -this.speed;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.vx = this.speed;
+                if ((game.keys['ArrowUp'] || game.keys['Space'] || game.keys['KeyW']) && this.onGround) {
+                    this.vy = -12;
+                    this.onGround = false;
+                    game.playSound(400, 0.1);
+                }
+
                 if (game.keys['ShiftLeft'] && this.canDash && !this.isDashing) {
                     this.vx = (game.keys['ArrowLeft'] || game.keys['KeyA']) ? -20 : 20;
                     this.isDashing = true;
                     this.canDash = false;
                     this.dashCooldown = 600;
-                    game.playShootSound(); // Use shoot sound for dash
+                    game.playSound(600, 0.1, 'sawtooth');
                     setTimeout(() => { this.isDashing = false; }, 150);
                 }
 
@@ -73,23 +82,20 @@
 
                 super.update(game);
 
-                // Death condition: fall below canvas
                 if (this.y > game.height) {
                     game.state = 'lost';
                     game.playDeathSound();
                 }
 
-                // Win condition: reach goal
                 this.traveled += Math.abs(this.vx) * 0.05;
                 const remaining = Math.max(0, this.targetDistance - Math.floor(this.traveled));
                 document.getElementById('distance').innerText = remaining;
 
                 if (remaining <= 0) {
                     game.state = 'won';
-                    game.playWinSound();
+                    game.playSound(800, 0.5);
                 }
 
-                // Platform collision
                 game.entities.forEach(entity => {
                     if (entity instanceof Platform) {
                         if (this.vy > 0 &&
@@ -110,6 +116,13 @@
             }
         }
 
+        class Platform extends Entity {
+            constructor(x, y, w, h, color) {
+                super(x, y, w, h, color);
+            }
+            update() {}
+        }
+
         class Hazard extends Entity {
             constructor(x, y, width, height) {
                 super(x, y, width, height, '#00fff5');
@@ -117,28 +130,20 @@
             update() {}
             draw(ctx) {
                 ctx.fillStyle = this.color;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = this.color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
-                ctx.shadowBlur = 0;
             }
         }
 
-        const game = new Game('gameCanvas', { gravity: 0.6, friction: 0.9 });
-        const player = new DashPlayer(50, 300);
-
-        // Level design - Cyberpunk theme
+        const game = new Game('gameCanvas', { gravity: 0.6, friction: 0.9, hasFloor: false });
         game.entities.push(new Platform(0, 350, 200, 10, '#4e4e4e'));
         game.entities.push(new Platform(250, 280, 150, 10, '#4e4e4e'));
         game.entities.push(new Platform(450, 220, 120, 10, '#4e4e4e'));
         game.entities.push(new Platform(600, 300, 150, 10, '#4e4e4e'));
         game.entities.push(new Platform(100, 150, 100, 10, '#4e4e4e'));
-
         game.entities.push(new Hazard(300, 260, 40, 20));
         game.entities.push(new Hazard(650, 280, 60, 20));
         game.entities.push(new Hazard(120, 130, 30, 20));
-
-        game.entities.push(player);
+        game.entities.push(new DashPlayer(50, 300));
 
         document.body.addEventListener('keydown', () => {
             game.startMusic([

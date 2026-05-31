@@ -53,8 +53,8 @@
                 this.x += this.vx;
                 this.vx *= 0.8;
 
-                if (this.x < 50) this.x = 50;
-                if (this.x > game.width - 90) this.x = game.width - 90;
+                if (this.x < 60) this.x = 60;
+                if (this.x > game.width - 100) this.x = game.width - 100;
 
                 game.entities.forEach(e => {
                     if (e instanceof Obstacle && this.collidesWith(e)) {
@@ -65,14 +65,22 @@
             }
             draw(ctx) {
                 ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
-                // Windows
-                ctx.fillStyle = '#000';
-                ctx.fillRect(this.x + 5, this.y + 15, 30, 20);
-                // Lights
-                ctx.fillStyle = '#fff';
-                ctx.fillRect(this.x + 5, this.y, 10, 5);
-                ctx.fillRect(this.x + 25, this.y, 10, 5);
+                ctx.fillRect(this.x, this.y + 10, this.width, this.height - 20);
+                ctx.fillStyle = '#008000';
+                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 30);
+                ctx.fillStyle = '#cdf';
+                ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 10);
+                ctx.fillRect(this.x + 8, this.y + 40, this.width - 16, 5);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y + this.height - 10, this.width, 5);
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - 5, this.y + 10, 5, 15);
+                ctx.fillRect(this.x + this.width, this.y + 10, 5, 15);
+                ctx.fillRect(this.x - 5, this.y + this.height - 25, 5, 15);
+                ctx.fillRect(this.x + this.width, this.y + this.height - 25, 5, 15);
+                ctx.fillStyle = '#ff0';
+                ctx.fillRect(this.x + 5, this.y + 10, 10, 5);
+                ctx.fillRect(this.x + 25, this.y + 10, 10, 5);
             }
         }
 
@@ -89,6 +97,14 @@
                     document.getElementById('score').innerText = game.score;
                 }
             }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y + 10, this.width, this.height - 20);
+                ctx.fillStyle = '#800';
+                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 30);
+                ctx.fillStyle = '#222';
+                ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 15);
+            }
         }
 
         class RacerGame extends Game {
@@ -98,32 +114,57 @@
                 this.spawnTimer = 0;
                 this.entities.push(new Car());
                 this.roadOffset = 0;
+                this.sideObjects = [];
             }
             update(deltaTime) {
                 super.update(deltaTime);
                 this.spawnTimer += deltaTime;
-                if (this.spawnTimer > 1000) {
-                    const x = 50 + Math.random() * (this.width - 140);
-                    this.entities.push(new Obstacle(x, 5 + Math.random() * 5));
+                if (this.spawnTimer > 1200) {
+                    const x = 70 + Math.random() * (this.width - 140);
+                    this.entities.push(new Obstacle(x, 4 + Math.random() * 4));
                     this.spawnTimer = 0;
                 }
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
-                this.roadOffset = (this.roadOffset + 5) % 40;
+                this.roadOffset = (this.roadOffset + 8) % 80;
+
+                if (Math.random() < 0.05) {
+                    this.sideObjects.push({x: 15, y: -50, type: 'tree'});
+                    this.sideObjects.push({x: this.width - 35, y: -50, type: 'tree'});
+                }
+                this.sideObjects.forEach(obj => obj.y += 8);
+                this.sideObjects = this.sideObjects.filter(obj => obj.y < this.height);
             }
             draw() {
-                // Draw road
-                this.ctx.fillStyle = '#222';
+                this.ctx.fillStyle = '#0a0';
+                this.ctx.fillRect(0, 0, 50, this.height);
+                this.ctx.fillRect(this.width - 50, 0, 50, this.height);
+                this.ctx.fillStyle = '#444';
                 this.ctx.fillRect(50, 0, this.width - 100, this.height);
-                // Lines
+                for(let i=-40; i<this.height; i+=40) {
+                    const y = (i + this.roadOffset) % (this.height + 40) - 40;
+                    this.ctx.fillStyle = (Math.floor((i + this.roadOffset)/40) % 2 === 0) ? '#fff' : '#f00';
+                    this.ctx.fillRect(50, y, 5, 40);
+                    this.ctx.fillRect(this.width - 55, y, 5, 40);
+                }
                 this.ctx.strokeStyle = '#fff';
-                this.ctx.setLineDash([20, 20]);
+                this.ctx.setLineDash([30, 50]);
                 this.ctx.lineDashOffset = -this.roadOffset;
+                this.ctx.lineWidth = 4;
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.width / 2, 0);
                 this.ctx.lineTo(this.width / 2, this.height);
                 this.ctx.stroke();
                 this.ctx.setLineDash([]);
-
+                this.sideObjects.forEach(obj => {
+                    if (obj.type === 'tree') {
+                        this.ctx.fillStyle = '#840';
+                        this.ctx.fillRect(obj.x + 5, obj.y + 20, 10, 20);
+                        this.ctx.fillStyle = '#060';
+                        this.ctx.beginPath();
+                        this.ctx.arc(obj.x + 10, obj.y + 15, 15, 0, Math.PI*2);
+                        this.ctx.fill();
+                    }
+                });
                 super.draw();
             }
         }

@@ -16,16 +16,15 @@
             height: 100vh;
             margin: 0;
             overflow: hidden;
-            background: linear-gradient(to bottom, #001, #003);
         }
         canvas {
-            background-color: #00051a;
-            border: 4px solid #fff;
+            background-color: #004;
+            border: 4px solid #333;
         }
         .ui {
             margin-bottom: 10px;
             font-size: 1.2rem;
-            color: #29adff;
+            color: #00e436;
         }
         .back-link {
             margin-top: 10px;
@@ -36,19 +35,44 @@
     </style>
 </head>
 <body>
-    <div class="ui">SCORE: <span id="score">0</span> | SPACE TO SHOOT</div>
+    <div class="ui">SCORE: <span id="score">0</span></div>
     <canvas id="gameCanvas" width="400" height="600"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
     <script src="../js/engine.js"></script>
     <script>
-        class Ship extends Entity {
-            constructor() {
-                super(180, 500, 40, 40, '#29adff');
-                this.speed = 8;
-                this.shootCooldown = 0;
+        class Bullet extends Entity {
+            constructor(x, y) {
+                super(x, y, 4, 10, '#fff');
+                this.vy = -10;
             }
-            update(game, deltaTime) {
+            update(game) {
+                this.y += this.vy;
+                if (this.y < -20) this.markedForDeletion = true;
+
+                game.entities.forEach(e => {
+                    if (e instanceof Enemy && this.collidesWith(e)) {
+                        e.health--;
+                        this.markedForDeletion = true;
+                        game.playSound(600, 0.05, 'square');
+                        if (e.health <= 0) {
+                            e.markedForDeletion = true;
+                            game.score += 50;
+                            document.getElementById('score').innerText = game.score;
+                            game.playSound(100, 0.2, 'sawtooth');
+                        }
+                    }
+                });
+            }
+        }
+
+        class PlayerPlane extends Entity {
+            constructor() {
+                super(180, 500, 40, 40, '#00e436');
+                this.speed = 6;
+                this.shootTimer = 0;
+            }
+            update(game) {
                 if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
                 if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
                 if (game.keys['ArrowUp'] || game.keys['KeyW']) this.y -= this.speed;
@@ -59,15 +83,15 @@
                 if (this.y < 0) this.y = 0;
                 if (this.y > game.height - this.height) this.y = game.height - this.height;
 
-                if (game.keys['Space'] && this.shootCooldown <= 0) {
+                this.shootTimer += 16;
+                if ((game.keys['Space'] || game.keys['KeyZ']) && this.shootTimer > 200) {
                     game.entities.push(new Bullet(this.x + this.width / 2 - 2, this.y));
-                    game.playShootSound();
-                    this.shootCooldown = 300;
+                    this.shootTimer = 0;
+                    game.playSound(800, 0.05, 'sine');
                 }
-                if (this.shootCooldown > 0) this.shootCooldown -= deltaTime;
 
                 game.entities.forEach(e => {
-                    if (e instanceof Asteroid && this.collidesWith(e)) {
+                    if (e instanceof Enemy && this.collidesWith(e)) {
                         game.state = 'lost';
                         game.playDeathSound();
                     }
@@ -75,52 +99,44 @@
             }
             draw(ctx) {
                 ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(this.x + 20, this.y);
-                ctx.lineTo(this.x, this.y + 40);
-                ctx.lineTo(this.x + 40, this.y + 40);
-                ctx.closePath();
-                ctx.fill();
+                ctx.fillRect(this.x, this.y + 15, this.width, 10);
+                ctx.fillRect(this.x + 15, this.y, 10, this.height);
+                ctx.fillRect(this.x + 10, this.y + 35, 20, 5);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(this.x + 17, this.y + 10, 6, 8);
             }
         }
 
-        class Bullet extends Entity {
-            constructor(x, y) {
-                super(x, y, 4, 10, '#ffa300');
-            }
-            update(game) {
-                this.y -= 10;
-                if (this.y < -20) this.markedForDeletion = true;
-
-                game.entities.forEach(e => {
-                    if (e instanceof Asteroid && this.collidesWith(e)) {
-                        e.markedForDeletion = true;
-                        this.markedForDeletion = true;
-                        game.score += 50;
-                        document.getElementById('score').innerText = game.score;
-                    }
-                });
-            }
-        }
-
-        class Asteroid extends Entity {
-            constructor(x, speed) {
-                super(x, -100, 30 + Math.random() * 30, 30 + Math.random() * 30, '#5f574f');
-                this.vy = speed;
+        class Enemy extends Entity {
+            constructor(x, type) {
+                super(x, -50, 40, 40, '#ff004d');
+                this.type = type;
+                this.health = type === 'heli' ? 3 : 1;
+                this.vy = type === 'heli' ? 2 : 4;
+                this.phase = Math.random() * Math.PI * 2;
             }
             update(game) {
                 this.y += this.vy;
-                if (this.y > game.height) {
-                    this.markedForDeletion = true;
-                    game.score += 10;
-                    document.getElementById('score').innerText = game.score;
+                if (this.type === 'heli') {
+                    this.x += Math.sin(this.y / 50 + this.phase) * 2;
                 }
+                if (this.y > game.height) this.markedForDeletion = true;
             }
             draw(ctx) {
                 ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width/2, 0, Math.PI*2);
-                ctx.fill();
+                if (this.type === 'plane') {
+                    ctx.fillRect(this.x, this.y + 15, this.width, 10);
+                    ctx.fillRect(this.x + 15, this.y, 10, this.height);
+                } else {
+                    ctx.fillRect(this.x + 5, this.y + 10, 30, 20);
+                    ctx.fillRect(this.x + 30, this.y + 15, 15, 5);
+                    const r = (Date.now() / 50) % (Math.PI * 2);
+                    ctx.strokeStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 20 - Math.cos(r) * 20, this.y + 10);
+                    ctx.lineTo(this.x + 20 + Math.cos(r) * 20, this.y + 10);
+                    ctx.stroke();
+                }
             }
         }
 
@@ -129,32 +145,36 @@
                 super('gameCanvas', { gravity: 0, friction: 1 });
                 this.score = 0;
                 this.spawnTimer = 0;
-                this.entities.push(new Ship());
-                this.stars = Array.from({length: 50}, () => ({
-                    x: Math.random() * this.width,
-                    y: Math.random() * this.height,
-                    s: 1 + Math.random() * 2
-                }));
+                this.entities.push(new PlayerPlane());
+                this.islands = [];
             }
             update(deltaTime) {
                 super.update(deltaTime);
                 this.spawnTimer += deltaTime;
-                if (this.spawnTimer > 800) {
-                    this.entities.push(new Asteroid(Math.random() * (this.width - 40), 2 + Math.random() * 4));
+                if (this.spawnTimer > 1000) {
+                    const x = Math.random() * (this.width - 40);
+                    const type = Math.random() > 0.7 ? 'heli' : 'plane';
+                    this.entities.push(new Enemy(x, type));
                     this.spawnTimer = 0;
                 }
+                if (Math.random() < 0.01) {
+                    this.islands.push({
+                        x: Math.random() * this.width,
+                        y: -100,
+                        size: 40 + Math.random() * 60,
+                        color: `rgb(0, ${100 + Math.random() * 50}, 0)`
+                    });
+                }
+                this.islands.forEach(isl => isl.y += 1);
+                this.islands = this.islands.filter(isl => isl.y < this.height + 100);
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
-
-                this.stars.forEach(s => {
-                    s.y += s.s;
-                    if (s.y > this.height) s.y = 0;
-                });
             }
             draw() {
-                // Background stars
-                this.ctx.fillStyle = '#fff';
-                this.stars.forEach(s => {
-                    this.ctx.fillRect(s.x, s.y, s.s, s.s);
+                this.islands.forEach(isl => {
+                    this.ctx.fillStyle = isl.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(isl.x, isl.y, isl.size, 0, Math.PI * 2);
+                    this.ctx.fill();
                 });
                 super.draw();
             }
@@ -163,8 +183,8 @@
         const game = new SkyGame();
         document.body.addEventListener('keydown', () => {
             game.startMusic([
-                {f: 392.00, d: 0.2}, {f: 349.23, d: 0.2}, {f: 329.63, d: 0.2}, {f: 293.66, d: 0.2},
-                {f: 261.63, d: 0.4}, {f: 293.66, d: 0.4}, {f: 329.63, d: 0.4}
+                {f: 349.23, d: 0.2}, {f: 392.00, d: 0.2}, {f: 440.00, d: 0.4},
+                {f: 349.23, d: 0.2}, {f: 392.00, d: 0.2}, {f: 523.25, d: 0.4}
             ]);
         }, { once: true });
         game.start();
