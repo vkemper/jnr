@@ -6,7 +6,7 @@
     <title>Dungeon Delver - JNR</title>
     <style>
         body { background: #1a1a1a; color: #fff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        canvas { background: #222; border: 4px solid #8b4513; }
+        canvas { background: #121212; border: 4px solid #5d4037; }
         .ui { margin-bottom: 10px; font-size: 1.2rem; color: #fff; }
         .back-link { margin-top: 10px; color: #444; text-decoration: none; font-size: 0.8rem; }
     </style>
@@ -20,7 +20,7 @@
     <script>
         class Delver extends Entity {
             constructor() {
-                super(20, 20, 20, 20, '#fff');
+                super(20, 20, 24, 24, '#fff');
                 this.speed = 4;
             }
             update(game) {
@@ -45,12 +45,14 @@
                     if (e instanceof Trap && this.collidesWith(e)) {
                         game.state = 'lost';
                         game.playDeathSound();
+                        for(let i=0; i<15; i++) game.addParticle(this.x + 12, this.y + 12, '#f44336');
                     }
                     if (e instanceof Gold && this.collidesWith(e)) {
                         e.markedForDeletion = true;
                         game.score += 50;
                         document.getElementById('score').innerText = game.score;
                         game.playSound(900, 0.05);
+                        for(let i=0; i<10; i++) game.addParticle(e.x + 8, e.y + 8, '#ffd700');
                     }
                     if (e instanceof Exit && this.collidesWith(e)) {
                         game.state = 'won';
@@ -58,12 +60,105 @@
                     }
                 });
             }
+            draw(ctx) {
+                ctx.save();
+                // Knight Body
+                ctx.fillStyle = '#9e9e9e'; // Armor
+                ctx.fillRect(this.x + 4, this.y + 4, 16, 16);
+                // Helmet
+                ctx.fillStyle = '#616161';
+                ctx.fillRect(this.x + 4, this.y, 16, 10);
+                ctx.fillStyle = '#000'; // Visor
+                ctx.fillRect(this.x + 6, this.y + 4, 12, 2);
+                // Shield
+                ctx.fillStyle = '#d32f2f';
+                ctx.fillRect(this.x + 16, this.y + 10, 8, 10);
+                // Sword
+                ctx.fillStyle = '#cfd8dc';
+                ctx.fillRect(this.x, this.y + 8, 4, 12);
+                ctx.restore();
+            }
         }
 
-        class Wall extends Entity { constructor(x, y, w, h) { super(x, y, w, h, '#444'); } update() {} }
-        class Trap extends Entity { constructor(x, y) { super(x, y, 20, 20, '#f00'); } update() {} }
-        class Gold extends Entity { constructor(x, y) { super(x, y, 10, 10, '#ffd700'); } update() {} }
-        class Exit extends Entity { constructor(x, y) { super(x, y, 30, 30, '#0f0'); } update() {} }
+        class Wall extends Entity {
+            constructor(x, y, w, h) {
+                super(x, y, w, h, '#4e342e');
+            }
+            update() {}
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                // Brick pattern
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 1;
+                for(let i=0; i<this.width; i+=20) {
+                    for(let j=0; j<this.height; j+=10) {
+                        ctx.strokeRect(this.x + i, this.y + j, 20, 10);
+                    }
+                }
+            }
+        }
+
+        class Trap extends Entity {
+            constructor(x, y) {
+                super(x, y, 20, 20, '#f44336');
+            }
+            update() {}
+            draw(ctx) {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x, this.y, 20, 20);
+                // Spikes
+                ctx.fillStyle = '#9e9e9e';
+                for(let i=0; i<3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 4 + i*6, this.y + 16);
+                    ctx.lineTo(this.x + 7 + i*6, this.y + 4);
+                    ctx.lineTo(this.x + 10 + i*6, this.y + 16);
+                    ctx.fill();
+                }
+            }
+        }
+
+        class Gold extends Entity {
+            constructor(x, y) {
+                super(x, y, 16, 16, '#ffd700');
+            }
+            update() {}
+            draw(ctx) {
+                // Chest
+                ctx.fillStyle = '#795548';
+                ctx.fillRect(this.x, this.y + 4, 16, 12);
+                ctx.fillStyle = '#ffd700'; // Gold lid
+                ctx.fillRect(this.x, this.y, 16, 4);
+                ctx.fillStyle = '#000'; // Lock
+                ctx.fillRect(this.x + 6, this.y + 6, 4, 4);
+            }
+        }
+
+        class Exit extends Entity {
+            constructor(x, y) {
+                super(x, y, 32, 32, '#4caf50');
+            }
+            update() {}
+            draw(ctx) {
+                // Portal effect
+                const r = (Date.now() * 0.005) % (Math.PI * 2);
+                ctx.save();
+                ctx.translate(this.x + 16, this.y + 16);
+                ctx.rotate(r);
+                const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+                grad.addColorStop(0, '#4caf50');
+                grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                for(let i=0; i<8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    ctx.lineTo(Math.cos(angle) * 16, Math.sin(angle) * 16);
+                }
+                ctx.fill();
+                ctx.restore();
+            }
+        }
 
         class DungeonGame extends Game {
             constructor() {
@@ -90,6 +185,19 @@
             update(deltaTime) {
                 super.update(deltaTime);
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
+            }
+            draw() {
+                // Floor texture
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                this.ctx.strokeStyle = '#222';
+                this.ctx.lineWidth = 1;
+                for(let i=0; i<this.width; i+=40) {
+                    for(let j=0; j<this.height; j+=40) {
+                        this.ctx.strokeRect(i, j, 40, 40);
+                    }
+                }
+                super.draw();
             }
         }
         const game = new DungeonGame();

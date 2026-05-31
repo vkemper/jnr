@@ -47,18 +47,29 @@
                 super(50, 300, 30, 40, '#ffcc00');
                 this.jumpForce = -12;
                 this.speed = 5;
+                this.facing = 1;
+                this.animTimer = 0;
             }
-            update(game) {
-                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.vx = -this.speed;
-                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.vx = this.speed;
+            update(game, deltaTime) {
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) {
+                    this.vx = -this.speed;
+                    this.facing = -1;
+                }
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) {
+                    this.vx = this.speed;
+                    this.facing = 1;
+                }
 
                 if ((game.keys['ArrowUp'] || game.keys['Space'] || game.keys['KeyW']) && this.onGround) {
                     this.vy = this.jumpForce;
                     this.onGround = false;
                     game.playSound(400, 0.1, 'sine');
+                    // Jump particles
+                    for(let i=0; i<5; i++) game.addParticle(this.x + this.width/2, this.y + this.height, '#fff');
                 }
 
                 super.update(game);
+                this.animTimer += deltaTime;
 
                 // Platform collision
                 game.entities.forEach(e => {
@@ -87,50 +98,114 @@
                         game.score++;
                         document.getElementById('coins').innerText = game.score;
                         game.playSound(800, 0.05, 'sine');
+                        for(let i=0; i<8; i++) game.addParticle(e.x + 7, e.y + 7, '#ffd700');
                     }
                 });
             }
             draw(ctx) {
-                ctx.fillStyle = this.color;
+                ctx.save();
+                ctx.translate(this.x + this.width/2, this.y + this.height);
+
+                // Squish/Stretch
+                let stretch = 1;
+                let squish = 1;
+                if (!this.onGround) {
+                    stretch = 1.2;
+                    squish = 0.8;
+                } else if (Math.abs(this.vx) > 0.1) {
+                    squish = 1 + Math.sin(this.animTimer * 0.01) * 0.1;
+                }
+                ctx.scale(squish * this.facing, stretch);
+
                 // Body
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width/2, -this.height, this.width, this.height);
+
+                // Overalls
+                ctx.fillStyle = '#304ffe';
+                ctx.fillRect(-this.width/2, -15, this.width, 15);
+                ctx.fillRect(-this.width/2, -25, 5, 10);
+                ctx.fillRect(this.width/2 - 5, -25, 5, 10);
+
                 // Cap
-                ctx.fillStyle = '#f00';
-                ctx.fillRect(this.x - 2, this.y, this.width + 10, 8);
-                // Eye
+                ctx.fillStyle = '#d50000';
+                ctx.fillRect(-this.width/2 - 4, -this.height, this.width + 8, 8);
+                ctx.fillRect(-this.width/2 - 2, -this.height - 2, this.width + 2, 4);
+
+                // Face details
                 ctx.fillStyle = '#000';
-                ctx.fillRect(this.x + 20, this.y + 12, 4, 4);
-                // Overall
-                ctx.fillStyle = '#00f';
-                ctx.fillRect(this.x, this.y + 25, this.width, 15);
+                ctx.fillRect(6, -this.height + 12, 4, 4); // Eye
+                ctx.fillStyle = '#4e342e';
+                ctx.fillRect(4, -this.height + 18, 12, 4); // Mustache
+
+                ctx.restore();
             }
         }
 
         class Platform extends Entity {
             constructor(x, y, w, h) {
-                super(x, y, w, h, '#8B4513');
+                super(x, y, w, h, '#5d4037');
             }
-            update() {} // Platforms don't move or fall
+            update() {}
             draw(ctx) {
+                // Dirt
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
-                ctx.fillStyle = '#228B22';
-                ctx.fillRect(this.x, this.y, this.width, 10);
+
+                // Grass
+                ctx.fillStyle = '#4caf50';
+                ctx.fillRect(this.x, this.y, this.width, 12);
+
+                // Grass blades
+                ctx.beginPath();
+                ctx.strokeStyle = '#2e7d32';
+                ctx.lineWidth = 2;
+                for(let i=0; i<this.width; i+=10) {
+                    ctx.moveTo(this.x + i, this.y);
+                    ctx.lineTo(this.x + i + 2, this.y - 4);
+                }
+                ctx.stroke();
+
+                // Texture/Rocks in dirt
+                ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                for(let i=0; i<3; i++) {
+                    ctx.fillRect(this.x + 10 + i*30, this.y + 20, 8, 4);
+                }
             }
         }
 
         class Coin extends Entity {
             constructor(x, y) {
                 super(x, y, 15, 15, '#ffd700');
+                this.animTimer = Math.random() * 100;
             }
-            update() {} // Coins stay in place
+            update(game, deltaTime) {
+                this.animTimer += deltaTime * 0.01;
+            }
             draw(ctx) {
-                ctx.fillStyle = this.color;
+                const scale = Math.abs(Math.sin(this.animTimer));
+                ctx.save();
+                ctx.translate(this.x + 7.5, this.y + 7.5);
+                ctx.scale(scale, 1);
+
+                ctx.fillStyle = '#ffeb3b';
                 ctx.beginPath();
-                ctx.arc(this.x + 7, this.y + 7, 7, 0, Math.PI * 2);
+                ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.strokeStyle = '#daa520';
+
+                ctx.strokeStyle = '#fbc02d';
+                ctx.lineWidth = 2;
                 ctx.stroke();
+
+                // Shine
+                if (scale > 0.8) {
+                    ctx.fillStyle = '#fff';
+                    ctx.globalAlpha = 0.5;
+                    ctx.fillRect(-2, -5, 2, 10);
+                    ctx.globalAlpha = 1;
+                }
+
+                ctx.restore();
             }
         }
 
@@ -141,10 +216,15 @@
                 document.getElementById('best').innerText = this.highScore;
                 this.score = 0;
                 this.setupLevel();
-                this.clouds = Array.from({length: 5}, () => ({
+                this.clouds = Array.from({length: 8}, () => ({
                     x: Math.random() * 800,
-                    y: 50 + Math.random() * 100,
-                    s: 0.2 + Math.random() * 0.5
+                    y: 20 + Math.random() * 120,
+                    s: 0.1 + Math.random() * 0.3,
+                    w: 40 + Math.random() * 60
+                }));
+                this.mountains = Array.from({length: 3}, (_, i) => ({
+                    x: i * 400,
+                    h: 150 + Math.random() * 100
                 }));
             }
             setupLevel() {
@@ -156,7 +236,7 @@
                     this.entities.push(new Platform(650, 300, 150, 100));
                     this.entities.push(new Coin(300, 240));
                     this.entities.push(new Coin(500, 160));
-                } else {
+                } else if (this.level === 2) {
                     this.entities.push(new Platform(0, 350, 100, 50));
                     this.entities.push(new Platform(150, 250, 100, 20));
                     this.entities.push(new Platform(300, 180, 100, 20));
@@ -176,7 +256,7 @@
                     this.entities.push(new Coin(320, 170));
                     this.entities.push(new Coin(470, 100));
                     this.entities.push(new Coin(620, 170));
-                } else if (this.level === 4) {
+                } else {
                     this.entities.push(new Platform(0, 350, 50, 50));
                     this.entities.push(new Platform(120, 300, 50, 20));
                     this.entities.push(new Platform(240, 250, 50, 20));
@@ -209,15 +289,37 @@
                 });
             }
             draw() {
-                // Clouds
-                this.ctx.fillStyle = '#fff';
-                this.clouds.forEach(c => {
+                // Sky gradient
+                const skyGrad = this.ctx.createLinearGradient(0, 0, 0, this.height);
+                skyGrad.addColorStop(0, '#4fc3f7');
+                skyGrad.addColorStop(1, '#e1f5fe');
+                this.ctx.fillStyle = skyGrad;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                // Distant Mountains (Parallax Layer 1)
+                this.ctx.fillStyle = '#90a4ae';
+                this.mountains.forEach(m => {
+                    const px = (m.x - this.entities[0].x * 0.1) % 1200;
                     this.ctx.beginPath();
-                    this.ctx.arc(c.x, c.y, 20, 0, Math.PI*2);
-                    this.ctx.arc(c.x + 15, c.y - 10, 20, 0, Math.PI*2);
-                    this.ctx.arc(c.x + 30, c.y, 20, 0, Math.PI*2);
+                    this.ctx.moveTo(px, this.height);
+                    this.ctx.lineTo(px + 200, this.height - m.h);
+                    this.ctx.lineTo(px + 400, this.height);
                     this.ctx.fill();
                 });
+
+                // Clouds (Parallax Layer 2)
+                this.ctx.fillStyle = '#fff';
+                this.ctx.globalAlpha = 0.8;
+                this.clouds.forEach(c => {
+                    const cx = (c.x - this.entities[0].x * 0.3) % (this.width + 200) - 100;
+                    this.ctx.beginPath();
+                    this.ctx.arc(cx, c.y, c.w/3, 0, Math.PI*2);
+                    this.ctx.arc(cx + c.w/4, c.y - c.w/5, c.w/3, 0, Math.PI*2);
+                    this.ctx.arc(cx + c.w/2, c.y, c.w/3, 0, Math.PI*2);
+                    this.ctx.fill();
+                });
+                this.ctx.globalAlpha = 1.0;
+
                 super.draw();
             }
         }
