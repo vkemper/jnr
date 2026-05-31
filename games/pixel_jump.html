@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Pixel Jump - JNR</title>
+    <style>
+        body {
+            background-color: #333;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            background-color: #87CEEB;
+            border: 4px solid #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .back-link {
+            margin-top: 20px;
+            color: #fff;
+            text-decoration: none;
+            border: 2px solid #fff;
+            padding: 5px 10px;
+        }
+        .back-link:hover {
+            background-color: #fff;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>SUPER PIXEL JUMP</h1>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="ui" style="margin-top: 10px;">Coins: <span id="coinCount">0</span></div>
+    <a href="../index.html" class="back-link">BACK TO MENU</a>
+
+    <script src="../js/engine.js"></script>
+    <script>
+        class PixelPlayer extends Player {
+            constructor(x, y) {
+                super(x, y, '#ff004d');
+                this.coins = 0;
+            }
+
+            update(game) {
+                super.update(game);
+
+                // Better platform collision
+                game.entities.forEach(entity => {
+                    if (entity instanceof Platform) {
+                        if (this.vy > 0 &&
+                            this.y + this.height <= entity.y + this.vy &&
+                            this.y + this.height + this.vy >= entity.y &&
+                            this.x + this.width > entity.x &&
+                            this.x < entity.x + entity.width) {
+                            this.y = entity.y - this.height;
+                            this.vy = 0;
+                            this.onGround = true;
+                        }
+                    }
+                    if (entity instanceof Coin && this.collidesWith(entity)) {
+                        this.coins++;
+                        document.getElementById('coinCount').innerText = this.coins;
+                        entity.collected = true;
+                    }
+                });
+            }
+        }
+
+        class Coin extends Entity {
+            constructor(x, y) {
+                super(x, y, 15, 15, '#ffec27');
+                this.collected = false;
+            }
+            update() {}
+            draw(ctx) {
+                if (this.collected) return;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width/2, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        const game = new Game('gameCanvas');
+        const player = new PixelPlayer(50, 300);
+
+        game.entities.push(new Platform(0, 380, 800, 20, '#5f574f')); // Floor
+        game.entities.push(new Platform(150, 300, 100, 20, '#ab9b8e'));
+        game.entities.push(new Platform(300, 220, 100, 20, '#ab9b8e'));
+        game.entities.push(new Platform(450, 300, 100, 20, '#ab9b8e'));
+        game.entities.push(new Platform(600, 150, 150, 20, '#ab9b8e'));
+
+        game.entities.push(new Coin(190, 270));
+        game.entities.push(new Coin(340, 190));
+        game.entities.push(new Coin(490, 270));
+        game.entities.push(new Coin(670, 120));
+
+        game.entities.push(player);
+
+        // Filter out collected coins
+        const originalUpdate = game.update.bind(game);
+        game.update = function(deltaTime) {
+            originalUpdate(deltaTime);
+            this.entities = this.entities.filter(e => !(e instanceof Coin && e.collected));
+        };
+
+        game.start();
+    </script>
+</body>
+</html>
