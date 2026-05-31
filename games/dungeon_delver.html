@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeon Delver - JNR</title>
+    <style>
+        body { background: #1a1a1a; color: #fff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        canvas { background: #222; border: 4px solid #8b4513; }
+        .ui { margin-bottom: 10px; font-size: 1.2rem; color: #fff; }
+        .back-link { margin-top: 10px; color: #444; text-decoration: none; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="ui">GOLD: <span id="score">0</span> | BEST: <span id="best">0</span></div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <a href="../index.html" class="back-link">ESC TO MENU</a>
+
+    <script src="../js/engine.js"></script>
+    <script>
+        class Delver extends Entity {
+            constructor() {
+                super(20, 20, 20, 20, '#fff');
+                this.speed = 4;
+            }
+            update(game) {
+                let oldX = this.x;
+                let oldY = this.y;
+
+                if (game.keys['ArrowUp'] || game.keys['KeyW']) this.y -= this.speed;
+                if (game.keys['ArrowDown'] || game.keys['KeyS']) this.y += this.speed;
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
+
+                if (this.x < 0 || this.x > game.width - this.width || this.y < 0 || this.y > game.height - this.height) {
+                    this.x = oldX;
+                    this.y = oldY;
+                }
+
+                game.entities.forEach(e => {
+                    if (e instanceof Wall && this.collidesWith(e)) {
+                        this.x = oldX;
+                        this.y = oldY;
+                    }
+                    if (e instanceof Trap && this.collidesWith(e)) {
+                        game.state = 'lost';
+                        game.playDeathSound();
+                    }
+                    if (e instanceof Gold && this.collidesWith(e)) {
+                        e.markedForDeletion = true;
+                        game.score += 50;
+                        document.getElementById('score').innerText = game.score;
+                        game.playSound(900, 0.05);
+                    }
+                    if (e instanceof Exit && this.collidesWith(e)) {
+                        game.state = 'won';
+                        game.playSound(1000, 0.5);
+                    }
+                });
+            }
+        }
+
+        class Wall extends Entity { constructor(x, y, w, h) { super(x, y, w, h, '#444'); } update() {} }
+        class Trap extends Entity { constructor(x, y) { super(x, y, 20, 20, '#f00'); } update() {} }
+        class Gold extends Entity { constructor(x, y) { super(x, y, 10, 10, '#ffd700'); } update() {} }
+        class Exit extends Entity { constructor(x, y) { super(x, y, 30, 30, '#0f0'); } update() {} }
+
+        class DungeonGame extends Game {
+            constructor() {
+                super('gameCanvas', { gravity: 0, friction: 1, gameId: 'dungeon_delver' });
+                document.getElementById('best').innerText = this.highScore;
+                this.entities.push(new Delver());
+                this.setupMap();
+            }
+            setupMap() {
+                // Outer walls
+                for(let i=0; i<5; i++) {
+                    this.entities.push(new Wall(100, i*40, 20, 40));
+                    this.entities.push(new Wall(200, 400 - i*40 - 40, 20, 40));
+                    this.entities.push(new Wall(300, i*40 + 100, 20, 40));
+                }
+                this.entities.push(new Gold(150, 50));
+                this.entities.push(new Gold(250, 350));
+                this.entities.push(new Gold(50, 300));
+                this.entities.push(new Trap(150, 200));
+                this.entities.push(new Trap(250, 100));
+                this.entities.push(new Trap(50, 150));
+                this.entities.push(new Exit(360, 360));
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.entities = this.entities.filter(e => !e.markedForDeletion);
+            }
+        }
+        const game = new DungeonGame();
+        game.start();
+    </script>
+</body>
+</html>

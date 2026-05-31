@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astro Void - JNR</title>
+    <style>
+        body { background: #000; color: #fff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        canvas { background: #000; border: 4px solid #444; }
+        .ui { margin-bottom: 10px; font-size: 1.2rem; color: #00e436; }
+        .back-link { margin-top: 10px; color: #444; text-decoration: none; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="ui">SCORE: <span id="score">0</span> | BEST: <span id="best">0</span></div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <a href="../index.html" class="back-link">ESC TO MENU</a>
+
+    <script src="../js/engine.js"></script>
+    <script>
+        class Bullet extends Entity {
+            constructor(x, y) {
+                super(x, y, 10, 4, '#f00');
+                this.vx = 10;
+                this.gravity = 0;
+            }
+            update(game) {
+                this.x += this.vx;
+                if (this.x > game.width) this.markedForDeletion = true;
+                game.entities.forEach(e => {
+                    if (e instanceof Asteroid && this.collidesWith(e)) {
+                        this.markedForDeletion = true;
+                        e.markedForDeletion = true;
+                        game.score += 100;
+                        document.getElementById('score').innerText = game.score;
+                        game.playSound(200, 0.1, 'sawtooth');
+                    }
+                });
+            }
+        }
+
+        class Ship extends Entity {
+            constructor() {
+                super(50, 200, 40, 30, '#00e436');
+                this.speed = 5;
+                this.shootTimer = 0;
+            }
+            update(game) {
+                if (game.keys['ArrowUp'] || game.keys['KeyW']) this.y -= this.speed;
+                if (game.keys['ArrowDown'] || game.keys['KeyS']) this.y += this.speed;
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
+
+                if (this.x < 0) this.x = 0;
+                if (this.x > game.width - this.width) this.x = game.width - this.width;
+                if (this.y < 0) this.y = 0;
+                if (this.y > game.height - this.height) this.y = game.height - this.height;
+
+                this.shootTimer += 16;
+                if (game.keys['Space'] && this.shootTimer > 250) {
+                    game.entities.push(new Bullet(this.x + this.width, this.y + this.height / 2 - 2));
+                    this.shootTimer = 0;
+                    game.playSound(600, 0.05);
+                }
+
+                game.entities.forEach(e => {
+                    if (e instanceof Asteroid && this.collidesWith(e)) {
+                        game.state = 'lost';
+                        game.playDeathSound();
+                    }
+                });
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width, this.y + this.height / 2);
+                ctx.lineTo(this.x, this.y + this.height);
+                ctx.fill();
+            }
+        }
+
+        class Asteroid extends Entity {
+            constructor(x, y, speed) {
+                super(x, y, 30 + Math.random() * 30, 30 + Math.random() * 30, '#888');
+                this.vx = -speed;
+            }
+            update(game) {
+                this.x += this.vx;
+                if (this.x < -100) this.markedForDeletion = true;
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.rect(this.x, this.y, this.width, this.height);
+                ctx.fill();
+                ctx.strokeStyle = '#555';
+                ctx.strokeRect(this.x + 5, this.y + 5, this.width - 10, this.height - 10);
+            }
+        }
+
+        class AstroGame extends Game {
+            constructor() {
+                super('gameCanvas', { gravity: 0, friction: 1, gameId: 'astro_void' });
+                document.getElementById('best').innerText = this.highScore;
+                this.entities.push(new Ship());
+                this.spawnTimer = 0;
+                this.stars = Array.from({length: 50}, () => ({ x: Math.random() * 800, y: Math.random() * 400, s: 1 + Math.random() * 3 }));
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.spawnTimer += deltaTime;
+                if (this.spawnTimer > 1000) {
+                    this.entities.push(new Asteroid(850, Math.random() * 350, 3 + Math.random() * 5));
+                    this.spawnTimer = 0;
+                }
+                this.stars.forEach(s => {
+                    s.x -= s.s;
+                    if (s.x < 0) s.x = 800;
+                });
+                this.entities = this.entities.filter(e => !e.markedForDeletion);
+            }
+            draw() {
+                this.ctx.fillStyle = '#fff';
+                this.stars.forEach(s => this.ctx.fillRect(s.x, s.y, 2, 2));
+                super.draw();
+            }
+        }
+
+        const game = new AstroGame();
+        game.start();
+    </script>
+</body>
+</html>
