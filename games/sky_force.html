@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sky Force - JNR</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #001, #003);
+        }
+        canvas {
+            background-color: #00051a;
+            border: 4px solid #fff;
+        }
+        .ui {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            color: #29adff;
+        }
+        .back-link {
+            margin-top: 10px;
+            color: #444;
+            text-decoration: none;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="ui">SCORE: <span id="score">0</span> | SPACE TO SHOOT</div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <a href="../index.html" class="back-link">ESC TO MENU</a>
+
+    <script src="../js/engine.js"></script>
+    <script>
+        class Ship extends Entity {
+            constructor() {
+                super(180, 500, 40, 40, '#29adff');
+                this.speed = 8;
+                this.shootCooldown = 0;
+            }
+            update(game, deltaTime) {
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
+                if (game.keys['ArrowUp'] || game.keys['KeyW']) this.y -= this.speed;
+                if (game.keys['ArrowDown'] || game.keys['KeyS']) this.y += this.speed;
+
+                if (this.x < 0) this.x = 0;
+                if (this.x > game.width - this.width) this.x = game.width - this.width;
+                if (this.y < 0) this.y = 0;
+                if (this.y > game.height - this.height) this.y = game.height - this.height;
+
+                if (game.keys['Space'] && this.shootCooldown <= 0) {
+                    game.entities.push(new Bullet(this.x + this.width / 2 - 2, this.y));
+                    game.playShootSound();
+                    this.shootCooldown = 250;
+                }
+                if (this.shootCooldown > 0) this.shootCooldown -= deltaTime;
+
+                game.entities.forEach(e => {
+                    if (e instanceof Enemy && this.collidesWith(e)) {
+                        game.state = 'lost';
+                        game.playDeathSound();
+                    }
+                });
+            }
+            draw(ctx) {
+                // Plane shape
+                ctx.fillStyle = this.color;
+                // Body
+                ctx.fillRect(this.x + 15, this.y, 10, 40);
+                // Wings
+                ctx.fillRect(this.x, this.y + 15, 40, 8);
+                // Tail
+                ctx.fillRect(this.x + 10, this.y + 32, 20, 5);
+                // Cockpit
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(this.x + 18, this.y + 8, 4, 8);
+            }
+        }
+
+        class Bullet extends Entity {
+            constructor(x, y) {
+                super(x, y, 4, 10, '#ffa300');
+            }
+            update(game) {
+                this.y -= 12;
+                if (this.y < -20) this.markedForDeletion = true;
+
+                game.entities.forEach(e => {
+                    if (e instanceof Enemy && this.collidesWith(e)) {
+                        e.markedForDeletion = true;
+                        this.markedForDeletion = true;
+                        game.score += 100;
+                        document.getElementById('score').innerText = game.score;
+                        game.playCoinSound(); // Explosion sound?
+                    }
+                });
+            }
+        }
+
+        class Enemy extends Entity {
+            constructor(x, speed, type) {
+                super(x, -100, 40, 40, type === 'heli' ? '#ff004d' : '#ab9b8e');
+                this.vy = speed;
+                this.type = type;
+                this.frame = 0;
+            }
+            update(game) {
+                this.y += this.vy;
+                this.frame += 0.5;
+                if (this.y > game.height) {
+                    this.markedForDeletion = true;
+                }
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                if (this.type === 'heli') {
+                    // Helicopter body
+                    ctx.fillRect(this.x + 10, this.y + 10, 20, 15);
+                    ctx.fillRect(this.x + 25, this.y + 15, 15, 5);
+                    // Rotor
+                    const r = Math.sin(this.frame) * 20;
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 20 - r, this.y + 5);
+                    ctx.lineTo(this.x + 20 + r, this.y + 5);
+                    ctx.stroke();
+                } else {
+                    // Enemy Jet
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + 20, this.y + 40);
+                    ctx.lineTo(this.x, this.y);
+                    ctx.lineTo(this.x + 40, this.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        }
+
+        class SkyGame extends Game {
+            constructor() {
+                super('gameCanvas', { gravity: 0, friction: 1 });
+                this.score = 0;
+                this.spawnTimer = 0;
+                this.entities.push(new Ship());
+                this.islands = Array.from({length: 3}, () => ({
+                    x: Math.random() * this.width,
+                    y: Math.random() * this.height,
+                    s: 40 + Math.random() * 60
+                }));
+                this.stars = Array.from({length: 30}, () => ({
+                    x: Math.random() * this.width,
+                    y: Math.random() * this.height,
+                    s: 1 + Math.random() * 2
+                }));
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.spawnTimer += deltaTime;
+                if (this.spawnTimer > 700) {
+                    const type = Math.random() > 0.5 ? 'heli' : 'jet';
+                    this.entities.push(new Enemy(Math.random() * (this.width - 40), 3 + Math.random() * 3, type));
+                    this.spawnTimer = 0;
+                }
+                this.entities = this.entities.filter(e => !e.markedForDeletion);
+
+                this.stars.forEach(s => {
+                    s.y += s.s * 2;
+                    if (s.y > this.height) s.y = 0;
+                });
+
+                this.islands.forEach(isl => {
+                    isl.y += 1;
+                    if (isl.y > this.height + 100) {
+                        isl.y = -100;
+                        isl.x = Math.random() * this.width;
+                    }
+                });
+            }
+            draw() {
+                // Background islands/landscape
+                this.islands.forEach(isl => {
+                    this.ctx.fillStyle = '#141';
+                    this.ctx.beginPath();
+                    this.ctx.arc(isl.x, isl.y, isl.s, 0, Math.PI*2);
+                    this.ctx.fill();
+                    this.ctx.fillStyle = '#060';
+                    this.ctx.beginPath();
+                    this.ctx.arc(isl.x - 10, isl.y - 10, isl.s/2, 0, Math.PI*2);
+                    this.ctx.fill();
+                });
+
+                // Stars
+                this.ctx.fillStyle = '#fff';
+                this.stars.forEach(s => {
+                    this.ctx.fillRect(s.x, s.y, s.s, s.s);
+                });
+                super.draw();
+            }
+        }
+
+        const game = new SkyGame();
+        document.body.addEventListener('keydown', () => {
+            game.startMusic([
+                {f: 392.00, d: 0.2}, {f: 349.23, d: 0.2}, {f: 329.63, d: 0.2}, {f: 293.66, d: 0.2},
+                {f: 261.63, d: 0.4}, {f: 293.66, d: 0.4}, {f: 329.63, d: 0.4}
+            ]);
+        }, { once: true });
+        game.start();
+    </script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Racer - JNR</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #111;
+            border: 4px solid #333;
+        }
+        .ui {
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            color: #00e436;
+        }
+        .back-link {
+            margin-top: 10px;
+            color: #444;
+            text-decoration: none;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="ui">SCORE: <span id="score">0</span></div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <a href="../index.html" class="back-link">ESC TO MENU</a>
+
+    <script src="../js/engine.js"></script>
+    <script>
+        class Car extends Entity {
+            constructor() {
+                super(180, 500, 40, 70, '#00e436');
+                this.speed = 7;
+            }
+            update(game) {
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.vx = -this.speed;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.vx = this.speed;
+
+                this.x += this.vx;
+                this.vx *= 0.8;
+
+                if (this.x < 60) this.x = 60;
+                if (this.x > game.width - 100) this.x = game.width - 100;
+
+                game.entities.forEach(e => {
+                    if (e instanceof Obstacle && this.collidesWith(e)) {
+                        game.state = 'lost';
+                        game.playDeathSound();
+                    }
+                });
+            }
+            draw(ctx) {
+                // Detailed car shape
+                ctx.fillStyle = this.color;
+                // Body
+                ctx.fillRect(this.x, this.y + 10, this.width, this.height - 20);
+                // Roof
+                ctx.fillStyle = '#008000';
+                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 30);
+                // Windows
+                ctx.fillStyle = '#cdf';
+                ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 10); // Front
+                ctx.fillRect(this.x + 8, this.y + 40, this.width - 16, 5);  // Rear
+                // Spoiler
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y + this.height - 10, this.width, 5);
+                // Wheels
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x - 5, this.y + 10, 5, 15);
+                ctx.fillRect(this.x + this.width, this.y + 10, 5, 15);
+                ctx.fillRect(this.x - 5, this.y + this.height - 25, 5, 15);
+                ctx.fillRect(this.x + this.width, this.y + this.height - 25, 5, 15);
+                // Headlights
+                ctx.fillStyle = '#ff0';
+                ctx.fillRect(this.x + 5, this.y + 10, 10, 5);
+                ctx.fillRect(this.x + 25, this.y + 10, 10, 5);
+            }
+        }
+
+        class Obstacle extends Entity {
+            constructor(x, speed) {
+                super(x, -100, 40, 70, '#ff004d');
+                this.vy = speed;
+            }
+            update(game) {
+                this.y += this.vy;
+                if (this.y > game.height) {
+                    this.markedForDeletion = true;
+                    game.score += 10;
+                    document.getElementById('score').innerText = game.score;
+                }
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y + 10, this.width, this.height - 20);
+                ctx.fillStyle = '#800';
+                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 30);
+                ctx.fillStyle = '#222';
+                ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 15);
+            }
+        }
+
+        class RacerGame extends Game {
+            constructor() {
+                super('gameCanvas', { gravity: 0, friction: 1 });
+                this.score = 0;
+                this.spawnTimer = 0;
+                this.entities.push(new Car());
+                this.roadOffset = 0;
+                this.sideObjects = [];
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.spawnTimer += deltaTime;
+                if (this.spawnTimer > 1200) {
+                    const x = 70 + Math.random() * (this.width - 140);
+                    this.entities.push(new Obstacle(x, 4 + Math.random() * 4));
+                    this.spawnTimer = 0;
+                }
+                this.entities = this.entities.filter(e => !e.markedForDeletion);
+                this.roadOffset = (this.roadOffset + 8) % 80;
+
+                // Move roadside objects
+                if (Math.random() < 0.05) {
+                    this.sideObjects.push({x: 15, y: -50, type: 'tree'});
+                    this.sideObjects.push({x: this.width - 35, y: -50, type: 'tree'});
+                }
+                this.sideObjects.forEach(obj => obj.y += 8);
+                this.sideObjects = this.sideObjects.filter(obj => obj.y < this.height);
+            }
+            draw() {
+                // Grass
+                this.ctx.fillStyle = '#0a0';
+                this.ctx.fillRect(0, 0, 50, this.height);
+                this.ctx.fillRect(this.width - 50, 0, 50, this.height);
+
+                // Road
+                this.ctx.fillStyle = '#444';
+                this.ctx.fillRect(50, 0, this.width - 100, this.height);
+
+                // Curb
+                for(let i=-40; i<this.height; i+=40) {
+                    const y = (i + this.roadOffset) % (this.height + 40) - 40;
+                    this.ctx.fillStyle = (Math.floor((i + this.roadOffset)/40) % 2 === 0) ? '#fff' : '#f00';
+                    this.ctx.fillRect(50, y, 5, 40);
+                    this.ctx.fillRect(this.width - 55, y, 5, 40);
+                }
+
+                // Lines
+                this.ctx.strokeStyle = '#fff';
+                this.ctx.setLineDash([30, 50]);
+                this.ctx.lineDashOffset = -this.roadOffset;
+                this.ctx.lineWidth = 4;
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.width / 2, 0);
+                this.ctx.lineTo(this.width / 2, this.height);
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+
+                // Side Objects
+                this.sideObjects.forEach(obj => {
+                    if (obj.type === 'tree') {
+                        this.ctx.fillStyle = '#840';
+                        this.ctx.fillRect(obj.x + 5, obj.y + 20, 10, 20);
+                        this.ctx.fillStyle = '#060';
+                        this.ctx.beginPath();
+                        this.ctx.arc(obj.x + 10, obj.y + 15, 15, 0, Math.PI*2);
+                        this.ctx.fill();
+                    }
+                });
+
+                super.draw();
+            }
+        }
+
+        const game = new RacerGame();
+        document.body.addEventListener('keydown', () => {
+            game.startMusic([
+                {f: 146.83, d: 0.2}, {f: 146.83, d: 0.2}, {f: 293.66, d: 0.4},
+                {f: 220.00, d: 0.2}, {f: 220.00, d: 0.2}, {f: 440.00, d: 0.4}
+            ]);
+        }, { once: true });
+        game.start();
+    </script>
+</body>
+</html>

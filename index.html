@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JNR ARCADE - Classic Collection</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle, #2a2a2a 0%, #000 100%);
+        }
+
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #ff004d;
+            text-shadow: 4px 4px 0px #7e2553, 8px 8px 0px #1d1d1d;
+            letter-spacing: 4px;
+        }
+
+        .subtitle {
+            color: #00e436;
+            margin-bottom: 3rem;
+            font-size: 1.2rem;
+        }
+
+        .game-list {
+            list-style: none;
+            padding: 0;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .game-item {
+            margin: 1rem 0;
+        }
+
+        .game-link {
+            text-decoration: none;
+            color: #ab9b8e;
+            font-size: 1.8rem;
+            transition: all 0.1s;
+            display: block;
+            padding: 15px;
+            border: 4px solid transparent;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .game-link.selected {
+            color: #fff;
+            background: #29adff;
+            border-color: #fff;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(41, 173, 255, 0.5);
+        }
+
+        .instructions {
+            margin-top: 3rem;
+            font-size: 0.9rem;
+            color: #5f574f;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .key-hint {
+            color: #ffa300;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>JNR ARCADE</h1>
+    <div class="subtitle">SELECT YOUR CHALLENGE</div>
+
+    <ul class="game-list" id="gameList">
+        <li class="game-item">
+            <a href="games/pixel_jump.html" class="game-link" data-index="0">SUPER PIXEL JUMP</a>
+        </li>
+        <li class="game-item">
+            <a href="games/midnight_dash.html" class="game-link" data-index="1">MIDNIGHT DASH</a>
+        </li>
+        <li class="game-item">
+            <a href="games/neon_racer.html" class="game-link" data-index="2">NEON RACER</a>
+        </li>
+        <li class="game-item">
+            <a href="games/sky_force.html" class="game-link" data-index="3">SKY FORCE</a>
+        </li>
+    </ul>
+
+    <div class="instructions">
+        <span class="key-hint">UP/DOWN</span> TO NAVIGATE<br>
+        <span class="key-hint">ENTER</span> TO PLAY<br>
+        <span class="key-hint">ESC</span> TO RETURN TO MENU
+    </div>
+
+    <script>
+        const links = document.querySelectorAll('.game-link');
+        let currentIndex = 0;
+
+        function updateSelection() {
+            links.forEach((link, idx) => {
+                if (idx === currentIndex) {
+                    link.classList.add('selected');
+                    link.focus();
+                } else {
+                    link.classList.remove('selected');
+                }
+            });
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                currentIndex = (currentIndex + 1) % links.length;
+                updateSelection();
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+                currentIndex = (currentIndex - 1 + links.length) % links.length;
+                updateSelection();
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                window.location.href = links[currentIndex].href;
+            }
+        });
+
+        // Initialize selection
+        updateSelection();
+
+        // Mouse hover support
+        links.forEach((link, idx) => {
+            link.addEventListener('mouseenter', () => {
+                currentIndex = idx;
+                updateSelection();
+            });
+        });
+    </script>
+
+</body>
+</html>
