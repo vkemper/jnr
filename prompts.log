@@ -1,14 +1,35 @@
 PROMPT LOG: JNR ARCADE DEVELOPMENT
 
+INITIAL REQUEST:
 USER: create a collection of in browser games that can be operated by keyboard. create a landing page to choose from a collection of games and create an initial set of jump'n run games, which resemble classic pc games. first draft everything and let me check your initial set of games.
 the result should be selfcontained with no external dependencies and no other programming languages than html, potentially javascript, typscript, css etc..
 
-USER: that looks good, but add 8 bit music and sound effects to the games (don't use any external sounds or music) and add some more games from other genres as well (e.g. racing, flying). create a logging of your prompts into a separate file. create more "advanced" retro graphics for the game (e.g. sprites for cars, planes etc and parallax style backgrounds where appropriate). pixel jump level 2 is too hard/not solvable. add more goals/win and loss conditions to the games.
+PROMPT 1:
+USER:
+good. although the games are very similar.
+multiple tasks now:
+add a racing game.
+add a flying game where the background moved top to bottom and one has to evade obstacles. extra points if one can shoot obstacles away by button press
+on index, have a preselected game (the first), and allow keyboard interaction for selection, not only mouse.
+in midnight dash, there is currently no goal of the game, and one should lose when one falls to the bottom unsupportely.
+in super pixel jump the first level cannot be solved. make it easier and allow for promotion to level 2 once 1 is finished.
+make the visual appearance of all games more appealing and more individual.
+add 8 bit style music to the games.
 
-AGENT: Implementation details:
+also create a separate file to save my prompts starting with this one.
+
+PROMPT 2:
+USER:
+level 2 of pixel jump is impossible. the top bar is too distant. bring it closer.
+in neon racer and sky force, add more background context and give the objects real shapes like cars, planes and helicopters. the background needs texture, i.e. a street or something and a landscape which is flown over. make the games graphics more advanced.
+in pixel jump lets have a proper main character collecting the coins, not only a square. come up with interesting designs for all of these enhancements.
+
+---
+
+AGENT IMPLEMENTATION SUMMARY:
 - Created Neon Racer (racing) and Sky Force (flying shooter).
-- Implemented frequency-based audio synthesis in engine.js.
-- Added detailed programmatic drawing for characters and vehicles.
-- Fixed Pixel Jump Level 2 platform heights and added coins.
-- Added 'Won'/'Lost' screens to all games.
-- Resolved git merge issues and restored codebase after branch failure.
+- Implemented frequency-based Audio synthesis in engine.js.
+- Added detailed programmatic drawing/sprites for characters, vehicles (cars, planes, helicopters), and environment (clouds, road lines, trees, islands).
+- Resolved Pixel Jump platforming difficulties (level 1 & level 2 platform positions).
+- Implemented dashboard metrics, coins, and win/loss states for all games.
+- Resolved git merge issues and consolidated branches.
