@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Midnight Dash - JNR</title>
+    <style>
+        body {
+            background-color: #0c0c0c;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            background-color: #1a1a2e;
+            border: 4px solid #4e4e4e;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        .back-link {
+            margin-top: 20px;
+            color: #fff;
+            text-decoration: none;
+            border: 2px solid #4e4e4e;
+            padding: 5px 10px;
+        }
+        .back-link:hover {
+            background-color: #4e4e4e;
+            color: #fff;
+        }
+        .hud {
+            margin-top: 10px;
+            font-size: 1.2rem;
+            color: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <h1>MIDNIGHT DASH</h1>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div class="hud">Dashes: <span id="dashCount">1</span> | Distance: <span id="distance">0</span>m</div>
+    <a href="../index.html" class="back-link">BACK TO MENU</a>
+
+    <script src="../js/engine.js"></script>
+    <script>
+        class DashPlayer extends Player {
+            constructor(x, y) {
+                super(x, y, '#e94560');
+                this.canDash = true;
+                this.isDashing = false;
+                this.dashCooldown = 0;
+                this.distance = 0;
+            }
+
+            update(game, deltaTime) {
+                if (game.keys['ShiftLeft'] && this.canDash && !this.isDashing) {
+                    this.vx = (game.keys['ArrowLeft'] || game.keys['KeyA']) ? -20 : 20;
+                    this.isDashing = true;
+                    this.canDash = false;
+                    this.dashCooldown = 500;
+                    setTimeout(() => { this.isDashing = false; }, 200);
+                }
+
+                if (this.dashCooldown > 0) {
+                    this.dashCooldown -= deltaTime;
+                } else if (this.onGround) {
+                    this.canDash = true;
+                }
+
+                document.getElementById('dashCount').innerText = this.canDash ? 1 : 0;
+
+                super.update(game);
+
+                // Track distance
+                if (this.vx !== 0) {
+                    this.distance += Math.abs(this.vx) * 0.01;
+                    document.getElementById('distance').innerText = Math.floor(this.distance);
+                }
+
+                // Platform collision
+                game.entities.forEach(entity => {
+                    if (entity instanceof Platform) {
+                        if (this.vy > 0 &&
+                            this.y + this.height <= entity.y + this.vy &&
+                            this.y + this.height + this.vy >= entity.y &&
+                            this.x + this.width > entity.x &&
+                            this.x < entity.x + entity.width) {
+                            this.y = entity.y - this.height;
+                            this.vy = 0;
+                            this.onGround = true;
+                        }
+                    }
+                    if (entity instanceof Hazard && this.collidesWith(entity)) {
+                        this.reset();
+                    }
+                });
+            }
+
+            reset() {
+                this.x = 50;
+                this.y = 300;
+                this.vx = 0;
+                this.vy = 0;
+                this.distance = 0;
+            }
+        }
+
+        class Hazard extends Entity {
+            constructor(x, y, width, height) {
+                super(x, y, width, height, '#00fff5');
+            }
+            update() {}
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                // Glow effect
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        const game = new Game('gameCanvas', { gravity: 0.6, friction: 0.85 });
+        const player = new DashPlayer(50, 300);
+
+        // Dynamic level pieces
+        game.entities.push(new Platform(0, 380, 200, 20, '#16213e'));
+        game.entities.push(new Platform(250, 320, 150, 20, '#16213e'));
+        game.entities.push(new Platform(450, 250, 100, 20, '#16213e'));
+        game.entities.push(new Platform(600, 320, 200, 20, '#16213e'));
+
+        game.entities.push(new Hazard(300, 300, 40, 20));
+        game.entities.push(new Hazard(650, 300, 60, 20));
+
+        game.entities.push(player);
+
+        game.start();
+    </script>
+</body>
+</html>

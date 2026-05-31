@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JNR - Classic Jump 'n Run Collection</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 2rem;
+            text-shadow: 4px 4px #ff004d;
+            animation: flicker 2s infinite;
+        }
+
+        .game-list {
+            list-style: none;
+            padding: 0;
+            text-align: center;
+        }
+
+        .game-item {
+            margin: 1.5rem 0;
+        }
+
+        .game-link {
+            text-decoration: none;
+            color: #29adff;
+            font-size: 1.5rem;
+            transition: all 0.2s;
+            display: inline-block;
+            padding: 10px 20px;
+            border: 4px solid transparent;
+        }
+
+        .game-link:hover {
+            color: #00e436;
+            border: 4px solid #fff;
+            transform: scale(1.1);
+        }
+
+        .instructions {
+            margin-top: 3rem;
+            font-size: 0.8rem;
+            color: #ab9b8e;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        @keyframes flicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+                opacity: 1;
+            }
+            20%, 24%, 55% {
+                opacity: 0.7;
+            }
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 20px;
+            font-size: 0.6rem;
+            color: #5f574f;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>JNR ARCADE</h1>
+
+    <ul class="game-list">
+        <li class="game-item">
+            <a href="games/pixel_jump.html" class="game-link">SUPER PIXEL JUMP</a>
+        </li>
+        <li class="game-item">
+            <a href="games/midnight_dash.html" class="game-link">MIDNIGHT DASH</a>
+        </li>
+    </ul>
+
+    <div class="instructions">
+        USE KEYBOARD TO OPERATE<br>
+        ARROWS/WASD TO MOVE & JUMP<br>
+        SELECT A GAME TO START
+    </div>
+
+    <div class="footer">
+        &copy; 2024 JNR COLLECTION - NO EXTERNAL DEPS
+    </div>
+
+</body>
+</html>
