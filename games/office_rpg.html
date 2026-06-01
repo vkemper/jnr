@@ -21,6 +21,7 @@
             padding: 20px;
             display: none;
             flex-direction: column;
+            z-index: 100;
         }
         .dialog-text { font-size: 1.1rem; line-height: 1.4; margin-bottom: 10px; color: #0f0; }
         .dialog-input {
@@ -44,6 +45,53 @@
         }
         .quest-item { font-size: 0.9rem; margin-bottom: 5px; }
         .quest-completed { text-decoration: line-through; color: #888; }
+
+        .api-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #2c3e50;
+            border: 4px solid #34495e;
+            padding: 30px;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            width: 400px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        .api-modal h2 { margin-top: 0; color: #ffa300; }
+        .api-modal p { font-size: 0.9rem; color: #bdc3c7; line-height: 1.4; }
+        .api-modal input {
+            background: #111;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 12px;
+            margin: 15px 0;
+            font-family: inherit;
+        }
+        .api-modal button {
+            background: #27ae60;
+            color: #fff;
+            border: none;
+            padding: 12px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        .api-modal button:hover { background: #2ecc71; }
+        .api-modal .cancel-btn { background: transparent; color: #888; font-size: 0.8rem; margin-top: 10px; text-decoration: underline; border: none; cursor: pointer; }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.8rem;
+            color: #888;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -64,25 +112,38 @@
         <input type="text" class="dialog-input" id="dialogInput" placeholder="Type your response..." autocomplete="off">
     </div>
 
+    <div class="api-modal" id="apiModal">
+        <h2>GEMINI API KEY REQUIRED</h2>
+        <p>To enable interactive NPC dialogues, please provide a Google AI Studio API key. Your key is stored locally in your browser and never sent elsewhere.</p>
+        <p style="font-size: 0.75rem;">Get one for free at: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #29adff;">aistudio.google.com</a></p>
+        <input type="password" id="apiKeyInput" placeholder="Enter API Key here...">
+        <button id="saveApiKeyBtn">SAVE AND ENABLE AI</button>
+        <button class="cancel-btn" id="skipApiKeyBtn">CONTINUE WITHOUT AI</button>
+    </div>
+
+    <div class="controls-hint">
+        WASD/ARROWS: MOVE | E/SPACE: TALK | ESC: MENU
+    </div>
+
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
     <script src="../js/engine.js"></script>
     <script>
         // API Configuration
-        // Note: In a production environment, never expose API keys in client-side code.
-        // For this assignment, we use a placeholder that would be injected/replaced.
-        // Attempt to load API_KEY from environment if available (though this is a static HTML file)
-        // In this specific sandbox environment, we can assume the user will provide it or it will be injected.
-        const API_KEY = window.localStorage.getItem('GOOGLE_AI_KEY') || "";
+        let API_KEY = window.localStorage.getItem('GOOGLE_AI_KEY') || "";
 
         class OfficePlayer extends Entity {
             constructor(x, y) {
                 super(x, y, 32, 32, '#3498db');
-                this.speed = 3;
+                this.speed = 4;
             }
 
             update(game, deltaTime) {
-                if (game.isDialogOpen) return;
+                if (game.isDialogOpen || game.isModalOpen) {
+                    this.vx = 0;
+                    this.vy = 0;
+                    return;
+                }
 
                 let oldX = this.x;
                 let oldY = this.y;
@@ -101,16 +162,19 @@
                     mvY /= mag;
                 }
 
-                this.x += mvX * this.speed;
-                this.y += mvY * this.speed;
+                this.vx = mvX * this.speed;
+                this.vy = mvY * this.speed;
+
+                this.x += this.vx;
+                this.y += this.vy;
 
                 // Collision with boundaries
                 if (this.x < 0) this.x = 0;
                 if (this.y < 0) this.y = 0;
-                if (this.x > game.width - this.width) this.x = game.width - this.width;
-                if (this.y > game.height - this.height) this.y = game.height - this.height;
+                if (this.x > game.worldWidth - this.width) this.x = game.worldWidth - this.width;
+                if (this.y > game.worldHeight - this.height) this.y = game.worldHeight - this.height;
 
-                // Collision with furniture (to be added)
+                // Collision with solid entities
                 game.entities.forEach(e => {
                     if (e !== this && e.solid && this.collidesWith(e)) {
                         this.x = oldX;
@@ -121,10 +185,19 @@
                 // Interaction check
                 if (game.keys['Space'] || game.keys['KeyE']) {
                     game.checkInteraction();
+                    // Prevent rapid fire interaction
+                    game.keys['Space'] = false;
+                    game.keys['KeyE'] = false;
                 }
             }
 
             draw(ctx) {
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.ellipse(this.x + 16, this.y + 30, 12, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
                 // Draw software engineer character
                 ctx.fillStyle = '#f39c12'; // Skin
                 ctx.fillRect(this.x + 8, this.y, 16, 16);
@@ -157,6 +230,12 @@
                 this.history = []; // Conversation history
             }
             draw(ctx) {
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(this.x + 16, this.y + 30, 10, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
                 // Body
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x + 4, this.y, 24, 32);
@@ -191,13 +270,14 @@
 
         class OfficeGame extends Game {
             constructor() {
-                super('gameCanvas', { gravity: 0, friction: 1, gameId: 'office_rpg' });
+                super('gameCanvas', { gravity: 0, friction: 0.9, gameId: 'office_rpg', hasFloor: false });
                 this.worldWidth = 2000;
                 this.worldHeight = 1500;
                 this.camera = new Camera(this.width, this.height, this.worldWidth, this.worldHeight);
                 this.isDialogOpen = false;
+                this.isModalOpen = false;
                 this.activeNPC = null;
-                this.player = new OfficePlayer(100, 100);
+                this.player = new OfficePlayer(200, 400);
                 this.entities.push(this.player);
                 this.quests = [];
                 this.setupMap();
@@ -320,10 +400,37 @@
                         this.closeDialog();
                     }
                 });
+
+                // API Modal UI
+                const modal = document.getElementById('apiModal');
+                const keyInput = document.getElementById('apiKeyInput');
+                const saveBtn = document.getElementById('saveApiKeyBtn');
+                const skipBtn = document.getElementById('skipApiKeyBtn');
+
+                if (!API_KEY) {
+                    this.isModalOpen = true;
+                    modal.style.display = 'flex';
+                }
+
+                saveBtn.onclick = () => {
+                    const key = keyInput.value.trim();
+                    if (key) {
+                        API_KEY = key;
+                        window.localStorage.setItem('GOOGLE_AI_KEY', key);
+                        this.isModalOpen = false;
+                        modal.style.display = 'none';
+                        this.playSound(1000, 0.1);
+                    }
+                };
+
+                skipBtn.onclick = () => {
+                    this.isModalOpen = false;
+                    modal.style.display = 'none';
+                };
             }
 
             checkInteraction() {
-                const interactionDist = 40;
+                const interactionDist = 50;
                 let closestNPC = null;
                 let minDist = interactionDist;
 
@@ -347,8 +454,15 @@
                 this.isDialogOpen = true;
                 document.getElementById('dialogContainer').style.display = 'flex';
                 document.getElementById('characterName').innerText = npc.name + ' (' + npc.role + ')';
-                document.getElementById('dialogText').innerText = `Hello! I'm ${npc.name}. How can I help you with your tasks today?`;
-                document.getElementById('dialogInput').focus();
+
+                if (!API_KEY) {
+                    document.getElementById('dialogText').innerText = `Hello! I'm ${npc.name}. (Note: AI Dialogues are disabled because no API key is set. You can set it in the console or refresh to see the prompt.)`;
+                    document.getElementById('dialogInput').style.display = 'none';
+                } else {
+                    document.getElementById('dialogText').innerText = `Hello! I'm ${npc.name}. How can I help you with your tasks today?`;
+                    document.getElementById('dialogInput').style.display = 'block';
+                    document.getElementById('dialogInput').focus();
+                }
             }
 
             closeDialog() {
@@ -465,16 +579,17 @@
                     }
                 }
 
-                // Draw entities
-                this.entities.forEach(entity => {
+                // Draw entities sorted by Y for depth sorting
+                const sortedEntities = [...this.entities].sort((a, b) => (a.y + a.height) - (b.y + b.height));
+                sortedEntities.forEach(entity => {
                     entity.draw(this.ctx);
                 });
+
                 this.drawParticles();
 
                 this.ctx.restore();
 
                 if (this.state !== 'playing') {
-                    // Draw end game screen (inherited but we might want to override)
                     super.draw();
                 }
             }
