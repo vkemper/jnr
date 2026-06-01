@@ -113,12 +113,15 @@
     </div>
 
     <div class="api-modal" id="apiModal">
-        <h2>GEMINI API KEY REQUIRED</h2>
+        <h2>WELCOME, ENGINEER</h2>
+        <p>You've arrived at the office, but things look... different. Talk to your coworkers to find out what's happening.</p>
+        <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+        <p style="color: #ffa300; font-weight: bold;">[AI SETUP]</p>
         <p>To enable interactive NPC dialogues, please provide a Google AI Studio API key. Your key is stored locally in your browser and never sent elsewhere.</p>
         <p style="font-size: 0.75rem;">Get one for free at: <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #29adff;">aistudio.google.com</a></p>
         <input type="password" id="apiKeyInput" placeholder="Enter API Key here...">
         <button id="saveApiKeyBtn">SAVE AND ENABLE AI</button>
-        <button class="cancel-btn" id="skipApiKeyBtn">CONTINUE WITHOUT AI</button>
+        <button class="cancel-btn" id="skipApiKeyBtn">CONTINUE WITHOUT AI (RESTRICTED DIALOG)</button>
     </div>
 
     <div class="controls-hint">
@@ -271,13 +274,25 @@
         class OfficeGame extends Game {
             constructor() {
                 super('gameCanvas', { gravity: 0, friction: 0.9, gameId: 'office_rpg', hasFloor: false });
+
+                // Override engine key listener to prevent movement during UI
+                window.removeEventListener('keydown', this.handleKeyDown);
+                window.addEventListener('keydown', (e) => {
+                    if (this.isModalOpen || (this.isDialogOpen && document.activeElement === document.getElementById('dialogInput'))) {
+                        if (e.code === 'Escape') window.location.href = '../index.html';
+                        return;
+                    }
+                    this.keys[e.code] = true;
+                    if (e.code === 'Escape') window.location.href = '../index.html';
+                });
+
                 this.worldWidth = 2000;
                 this.worldHeight = 1500;
                 this.camera = new Camera(this.width, this.height, this.worldWidth, this.worldHeight);
                 this.isDialogOpen = false;
                 this.isModalOpen = false;
                 this.activeNPC = null;
-                this.player = new OfficePlayer(200, 400);
+                this.player = new OfficePlayer(60, 400);
                 this.entities.push(this.player);
                 this.quests = [];
                 this.setupMap();
@@ -420,12 +435,14 @@
                         this.isModalOpen = false;
                         modal.style.display = 'none';
                         this.playSound(1000, 0.1);
+                        window.focus(); // Ensure focus returns to game
                     }
                 };
 
                 skipBtn.onclick = () => {
                     this.isModalOpen = false;
                     modal.style.display = 'none';
+                    window.focus(); // Ensure focus returns to game
                 };
             }
 
