@@ -23,7 +23,7 @@
                 super(x, y, 12, 4, '#f00');
                 this.vx = 12;
             }
-            update(game) {
+            update(game, deltaTime) {
                 this.x += this.vx;
                 if (this.x > game.width) this.markedForDeletion = true;
                 game.entities.forEach(e => {
@@ -32,7 +32,8 @@
                         e.markedForDeletion = true;
                         game.score += 100;
                         document.getElementById('score').innerText = game.score;
-                        game.playSound(200, 0.1, 'sawtooth');
+                        game.playSound(150, 0.2, 'sawtooth');
+                        game.playSound(100, 0.2, 'sawtooth');
                         for(let i=0; i<10; i++) game.addParticle(e.x + e.width/2, e.y + e.height/2, '#888');
                     }
                 });
@@ -67,7 +68,8 @@
                 if (game.keys['Space'] && this.shootTimer > 200) {
                     game.entities.push(new Bullet(this.x + this.width, this.y + this.height / 2 - 2));
                     this.shootTimer = 0;
-                    game.playSound(600, 0.05);
+                    game.playSound(800, 0.05, 'square');
+                    game.playSound(400, 0.05, 'square');
                 }
 
                 // Thruster particles
@@ -126,7 +128,7 @@
                 this.rotation = 0;
                 this.rotSpeed = (Math.random() - 0.5) * 0.05;
             }
-            update(game) {
+            update(game, deltaTime) {
                 this.x += this.vx;
                 this.rotation += this.rotSpeed;
                 if (this.x < -100) this.markedForDeletion = true;
@@ -204,6 +206,13 @@
         }
 
         const game = new AstroGame();
+        document.body.addEventListener('keydown', () => {
+            game.startMusic([
+                {f: 110.00, d: 0.4}, {f: 110.00, d: 0.4}, {f: 146.83, d: 0.4}, {f: 110.00, d: 0.4},
+                {f: 164.81, d: 0.4}, {f: 164.81, d: 0.4}, {f: 146.83, d: 0.4}, {f: 110.00, d: 0.4},
+                {f: 98.00, d: 0.4}, {f: 98.00, d: 0.4}, {f: 110.00, d: 0.4}, {f: 98.00, d: 0.4}
+            ]);
+        }, { once: true });
         game.start();
     </script>
 </body>

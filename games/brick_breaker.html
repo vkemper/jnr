@@ -21,10 +21,10 @@
         class Ball extends Entity {
             constructor(x, y) {
                 super(x, y, 12, 12, '#fff');
-                this.vx = 4;
-                this.vy = -4;
+                this.vx = 6;
+                this.vy = -6;
             }
-            update(game) {
+            update(game, deltaTime) {
                 this.x += this.vx;
                 this.y += this.vy;
 
@@ -89,7 +89,7 @@
             constructor(x, y, color) {
                 super(x, y, 50, 20, color);
             }
-            update() {}
+            update(game, deltaTime) {}
             draw(ctx) {
                 // Main Brick
                 ctx.fillStyle = this.color;
@@ -110,9 +110,9 @@
         class Paddle extends Entity {
             constructor() {
                 super(250, 370, 100, 15, '#ffa300');
-                this.speed = 10;
+                this.speed = 14;
             }
-            update(game) {
+            update(game, deltaTime) {
                 if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
                 if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
                 if (this.x < 0) this.x = 0;
