@@ -111,35 +111,109 @@
         }
 
         class Obstacle extends Entity {
-            constructor(x, speed, isWiggly = false) {
-                super(x, -100, 45, 80, '#ff004d');
+            constructor(x, speed, type = 'car') {
+                const colors = ['#ff004d', '#00fff5', '#ff00ff', '#ffff00', '#ff8c00'];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+
+                let width = 45;
+                let height = 80;
+
+                if (type === 'truck') {
+                    width = 50;
+                    height = 120;
+                } else if (type === 'motorcycle') {
+                    width = 20;
+                    height = 40;
+                } else if (type === 'barrier') {
+                    width = 80;
+                    height = 30;
+                    speed = 0;
+                } else if (type === 'oil') {
+                    width = 60;
+                    height = 60;
+                    speed = 0;
+                }
+
+                super(x, -150, width, height, color);
+                this.type = type;
                 this.vy = speed;
-                this.isWiggly = isWiggly;
+                this.isWiggly = type === 'motorcycle' && Math.random() < 0.3;
                 this.wigglePhase = Math.random() * Math.PI * 2;
             }
-            update(game) {
-                this.y += this.vy;
-                if (this.isWiggly) {
-                    this.x += Math.sin(this.y / 50 + this.wigglePhase) * 2;
+            update(game, deltaTime) {
+                // If stationary, they move with the road scroll
+                let effectiveVy = this.vy === 0 ? game.scrollSpeed : this.vy;
+
+                // Simple collision avoidance with other obstacles
+                if (this.vy > 0) { // Only for moving vehicles
+                    game.entities.forEach(e => {
+                        if (e !== this && e instanceof Obstacle && e.y > this.y - 150 && e.y < this.y) {
+                            // This is behind e
+                        }
+                        if (e !== this && e instanceof Obstacle && e.y > this.y && e.y < this.y + this.height + 20) {
+                            // Check if in same horizontal range
+                            if (this.x < e.x + e.width && this.x + this.width > e.x) {
+                                if (effectiveVy > e.vy && e.vy > 0) {
+                                    effectiveVy = e.vy;
+                                } else if (e.vy === 0) {
+                                     // Stationary obstacle ahead, try to avoid or stop?
+                                     // For simplicity, just slow down significantly
+                                     effectiveVy = Math.min(effectiveVy, game.scrollSpeed);
+                                }
+                            }
+                        }
+                    });
                 }
-                if (this.y > game.height) {
+
+                this.y += effectiveVy;
+
+                if (this.isWiggly) {
+                    this.x += Math.sin(this.y / 50 + this.wigglePhase) * 3;
+                }
+
+                if (this.y > game.height + 150) {
                     this.markedForDeletion = true;
-                    game.score += 10;
-                    document.getElementById('score').innerText = game.score;
+                    if (this.type !== 'oil') {
+                        game.score += 10;
+                        document.getElementById('score').innerText = game.score;
+                    }
                 }
             }
             draw(ctx) {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
-                ctx.fillStyle = '#800';
-                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 40);
-                ctx.fillStyle = '#1a1a1a'; // Glass
-                ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 15);
-
-                // Tail lights
-                ctx.fillStyle = '#ff5252';
-                ctx.fillRect(this.x + 5, this.y + this.height - 5, 10, 5);
-                ctx.fillRect(this.x + this.width - 15, this.y + this.height - 5, 10, 5);
+                if (this.type === 'car') {
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 40);
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 15);
+                    ctx.fillStyle = '#ff5252';
+                    ctx.fillRect(this.x + 5, this.y + this.height - 5, 10, 5);
+                    ctx.fillRect(this.x + this.width - 15, this.y + this.height - 5, 10, 5);
+                } else if (this.type === 'truck') {
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                    ctx.fillRect(this.x, this.y + 20, this.width, 2);
+                    ctx.fillRect(this.x, this.y + 40, this.width, 2);
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x + 5, this.y + 5, this.width - 10, 20); // Cab
+                } else if (this.type === 'motorcycle') {
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(this.x + 5, this.y, 10, this.height);
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x, this.y + 10, this.width, 5); // Handlebars
+                } else if (this.type === 'barrier') {
+                    ctx.fillStyle = '#f57f17';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(this.x, this.y + 10, this.width, 10);
+                } else if (this.type === 'oil') {
+                    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                    ctx.beginPath();
+                    ctx.ellipse(this.x + 30, this.y + 30, 30, 20, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
         }
 
@@ -155,24 +229,37 @@
                 this.timeElapsed = 0;
             }
             update(deltaTime) {
+                const difficultyFactor = Math.min(1, this.timeElapsed / 60000);
+                this.scrollSpeed = 8 + (difficultyFactor * 12);
+
                 super.update(deltaTime);
                 this.timeElapsed += deltaTime;
                 this.spawnTimer += deltaTime;
 
-                const difficultyFactor = Math.min(1, this.timeElapsed / 60000);
                 const spawnInterval = 1200 - (difficultyFactor * 800);
                 const baseSpeed = 4 + (difficultyFactor * 6);
 
                 if (this.spawnTimer > spawnInterval) {
+                    const types = ['car', 'car', 'truck', 'motorcycle', 'barrier', 'oil'];
+                    const type = types[Math.floor(Math.random() * types.length)];
                     const x = 70 + Math.random() * (this.width - 140);
-                    const isWiggly = difficultyFactor > 0.5 && Math.random() < difficultyFactor - 0.5;
-                    this.entities.push(new Obstacle(x, baseSpeed + Math.random() * 4, isWiggly));
+
+                    const newObs = new Obstacle(x, baseSpeed + Math.random() * 4, type);
+
+                    // Prevent overlap
+                    let overlapping = false;
+                    this.entities.forEach(e => {
+                        if (e instanceof Obstacle && newObs.collidesWith(e)) overlapping = true;
+                    });
+
+                    if (!overlapping) {
+                        this.entities.push(newObs);
+                    }
                     this.spawnTimer = 0;
                 }
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
 
-                const scrollSpeed = 8 + (difficultyFactor * 12);
-                this.roadOffset = (this.roadOffset + scrollSpeed) % 80;
+                this.roadOffset = (this.roadOffset + this.scrollSpeed) % 80;
 
                 if (Math.random() < 0.05) {
                     this.sideObjects.push({x: 15, y: -50, type: 'tree', s: 1 + Math.random()});
@@ -183,7 +270,7 @@
                     this.sideObjects.push({x: this.width - 10, y: -100, type: 'lamp'});
                 }
 
-                this.sideObjects.forEach(obj => obj.y += scrollSpeed);
+                this.sideObjects.forEach(obj => obj.y += this.scrollSpeed);
                 this.sideObjects = this.sideObjects.filter(obj => obj.y < this.height + 100);
             }
             draw() {

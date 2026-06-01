@@ -43,24 +43,27 @@
     <script src="../js/engine.js"></script>
     <script>
         class Player extends Entity {
-            constructor() {
-                super(50, 300, 30, 40, '#ffcc00');
+            constructor(x, y, color, controls, id) {
+                super(x, y, 30, 40, color);
                 this.jumpForce = -12;
                 this.speed = 5;
                 this.facing = 1;
                 this.animTimer = 0;
+                this.controls = controls;
+                this.id = id;
+                this.score = 0;
             }
             update(game, deltaTime) {
-                if (game.keys['ArrowLeft'] || game.keys['KeyA']) {
+                if (game.keys[this.controls.left]) {
                     this.vx = -this.speed;
                     this.facing = -1;
                 }
-                if (game.keys['ArrowRight'] || game.keys['KeyD']) {
+                if (game.keys[this.controls.right]) {
                     this.vx = this.speed;
                     this.facing = 1;
                 }
 
-                if ((game.keys['ArrowUp'] || game.keys['Space'] || game.keys['KeyW']) && this.onGround) {
+                if (game.keys[this.controls.up] && this.onGround) {
                     this.vy = this.jumpForce;
                     this.onGround = false;
                     game.playSound(400, 0.1, 'sine');
@@ -73,6 +76,10 @@
 
                 // Platform collision
                 game.entities.forEach(e => {
+                    if (e instanceof Spike && this.collidesWith(e)) {
+                        game.state = 'lost';
+                        game.playDeathSound();
+                    }
                     if (e instanceof Platform) {
                         if (this.vy > 0 &&
                             this.y + this.height <= e.y + this.vy &&
@@ -91,12 +98,16 @@
                     game.nextLevel();
                 }
 
+                if (this.y > game.height) {
+                    game.state = 'lost';
+                    game.playDeathSound();
+                }
+
                 // Collect coins
                 game.entities.forEach(e => {
                     if (e instanceof Coin && this.collidesWith(e)) {
                         e.markedForDeletion = true;
-                        game.score++;
-                        document.getElementById('coins').innerText = game.score;
+                        this.score++;
                         game.playSound(800, 0.05, 'sine');
                         for(let i=0; i<8; i++) game.addParticle(e.x + 7, e.y + 7, '#ffd700');
                     }
@@ -142,11 +153,28 @@
             }
         }
 
+        class Spike extends Entity {
+            constructor(x, y) {
+                super(x, y, 30, 20, '#ff0000');
+            }
+            update(game, deltaTime) {}
+            draw(ctx) {
+                ctx.fillStyle = '#666';
+                for(let i=0; i<3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.x + i*10, this.y + 20);
+                    ctx.lineTo(this.x + 5 + i*10, this.y);
+                    ctx.lineTo(this.x + 10 + i*10, this.y + 20);
+                    ctx.fill();
+                }
+            }
+        }
+
         class Platform extends Entity {
             constructor(x, y, w, h) {
                 super(x, y, w, h, '#5d4037');
             }
-            update() {}
+            update(game, deltaTime) {}
             draw(ctx) {
                 // Dirt
                 ctx.fillStyle = this.color;
@@ -213,6 +241,11 @@
             constructor() {
                 super('gameCanvas', { gameId: 'pixel_jump' });
                 this.level = 1;
+                this.showTrajectory = false;
+                this.trajectoryHandler = (e) => {
+                    if (e.code === 'KeyT') this.showTrajectory = !this.showTrajectory;
+                };
+                window.addEventListener('keydown', this.trajectoryHandler);
                 document.getElementById('best').innerText = this.highScore;
                 this.score = 0;
                 this.setupLevel();
@@ -228,51 +261,131 @@
                 }));
             }
             setupLevel() {
-                this.entities = [new Player()];
-                if (this.level === 1) {
-                    this.entities.push(new Platform(0, 350, 200, 50));
-                    this.entities.push(new Platform(250, 280, 150, 20));
-                    this.entities.push(new Platform(450, 200, 150, 20));
-                    this.entities.push(new Platform(650, 300, 150, 100));
-                    this.entities.push(new Coin(300, 240));
-                    this.entities.push(new Coin(500, 160));
-                } else if (this.level === 2) {
-                    this.entities.push(new Platform(0, 350, 100, 50));
-                    this.entities.push(new Platform(150, 250, 100, 20));
-                    this.entities.push(new Platform(300, 180, 100, 20));
-                    this.entities.push(new Platform(480, 250, 100, 20));
-                    this.entities.push(new Platform(650, 320, 150, 80));
-                    this.entities.push(new Coin(190, 210));
-                    this.entities.push(new Coin(340, 140));
-                    this.entities.push(new Coin(520, 210));
-                } else if (this.level === 3) {
-                    this.entities.push(new Platform(0, 350, 80, 50));
-                    this.entities.push(new Platform(150, 280, 60, 20));
-                    this.entities.push(new Platform(300, 210, 60, 20));
-                    this.entities.push(new Platform(450, 140, 60, 20));
-                    this.entities.push(new Platform(600, 210, 60, 20));
-                    this.entities.push(new Platform(700, 300, 100, 100));
-                    this.entities.push(new Coin(170, 240));
-                    this.entities.push(new Coin(320, 170));
-                    this.entities.push(new Coin(470, 100));
-                    this.entities.push(new Coin(620, 170));
+                this.trajectories = [
+                    [{x: 50, y: 300}, {x: 300, y: 240}, {x: 500, y: 160}, {x: 750, y: 300}], // L1
+                    [{x: 50, y: 300}, {x: 190, y: 210}, {x: 340, y: 140}, {x: 520, y: 210}, {x: 750, y: 320}], // L2
+                    [{x: 50, y: 300}, {x: 170, y: 240}, {x: 320, y: 170}, {x: 470, y: 100}, {x: 620, y: 170}, {x: 750, y: 300}], // L3
+                    [{x: 50, y: 300}, {x: 135, y: 260}, {x: 375, y: 160}, {x: 615, y: 160}, {x: 750, y: 260}, {x: 750, y: 300}], // L4
+                    [{x: 50, y: 300}, {x: 110, y: 260}, {x: 310, y: 260}, {x: 510, y: 260}, {x: 750, y: 300}], // L5
+                    [{x: 50, y: 300}, {x: 200, y: 310}, {x: 550, y: 210}, {x: 750, y: 300}], // L6
+                    [{x: 50, y: 300}, {x: 200, y: 160}, {x: 500, y: 160}, {x: 750, y: 300}], // L7
+                    [{x: 50, y: 300}, {x: 170, y: 260}, {x: 320, y: 210}, {x: 470, y: 160}, {x: 620, y: 110}, {x: 750, y: 350}], // L8
+                    [{x: 25, y: 200}, {x: 200, y: 310}, {x: 400, y: 310}, {x: 600, y: 310}, {x: 775, y: 200}], // L9
+                    [{x: 25, y: 350}, {x: 100, y: 230}, {x: 260, y: 70}, {x: 420, y: 230}, {x: 660, y: 150}, {x: 760, y: 300}], // L10
+                    [{x: 50, y: 350}, {x: 200, y: 260}, {x: 300, y: 210}, {x: 400, y: 160}, {x: 500, y: 210}, {x: 600, y: 260}, {x: 750, y: 350}], // L11
+                    [{x: 25, y: 350}, {x: 150, y: 60}, {x: 350, y: 60}, {x: 550, y: 60}, {x: 775, y: 350}], // L12
+                    [{x: 25, y: 350}, {x: 115, y: 260}, {x: 315, y: 160}, {x: 515, y: 60}, {x: 715, y: 260}, {x: 750, y: 300}], // L13
+                    [{x: 50, y: 350}, {x: 100, y: 310}, {x: 400, y: 310}, {x: 700, y: 310}, {x: 750, y: 350}] // L14
+                ];
+                if (!this.players) {
+                    const p1 = new Player(50, 300, '#ffcc00', {left: 'ArrowLeft', right: 'ArrowRight', up: 'ArrowUp'}, 1);
+                    const p2 = new Player(50, 300, '#00e436', {left: 'KeyA', right: 'KeyD', up: 'KeyW'}, 2);
+                    this.players = [p1, p2];
                 } else {
-                    this.entities.push(new Platform(0, 350, 50, 50));
-                    this.entities.push(new Platform(120, 300, 50, 20));
-                    this.entities.push(new Platform(240, 250, 50, 20));
-                    this.entities.push(new Platform(360, 200, 50, 20));
-                    this.entities.push(new Platform(480, 150, 50, 20));
-                    this.entities.push(new Platform(600, 200, 50, 20));
-                    this.entities.push(new Platform(720, 300, 80, 100));
-                    this.entities.push(new Coin(135, 260));
-                    this.entities.push(new Coin(375, 160));
-                    this.entities.push(new Coin(615, 160));
-                    this.entities.push(new Coin(750, 260));
+                    this.players.forEach(p => {
+                        p.x = 50;
+                        p.y = 300;
+                        p.vx = 0;
+                        p.vy = 0;
+                        p.markedForDeletion = false;
+                    });
                 }
+                this.entities = [...this.players];
+                const levels = [
+                    // Level 1
+                    {
+                        platforms: [[0, 350, 200, 50], [250, 280, 150, 20], [450, 200, 150, 20], [650, 300, 150, 100]],
+                        coins: [[300, 240], [500, 160]],
+                        spikes: []
+                    },
+                    // Level 2
+                    {
+                        platforms: [[0, 350, 100, 50], [150, 250, 100, 20], [300, 180, 100, 20], [480, 250, 100, 20], [650, 320, 150, 80]],
+                        coins: [[190, 210], [340, 140], [520, 210]],
+                        spikes: [[320, 380]]
+                    },
+                    // Level 3
+                    {
+                        platforms: [[0, 350, 80, 50], [150, 280, 60, 20], [300, 210, 60, 20], [450, 140, 60, 20], [600, 210, 60, 20], [700, 300, 100, 100]],
+                        coins: [[170, 240], [320, 170], [470, 100], [620, 170]],
+                        spikes: [[250, 380], [500, 380]]
+                    },
+                    // Level 4
+                    {
+                        platforms: [[0, 350, 50, 50], [120, 300, 50, 20], [240, 250, 50, 20], [360, 200, 50, 20], [480, 150, 50, 20], [600, 200, 50, 20], [720, 300, 80, 100]],
+                        coins: [[135, 260], [375, 160], [615, 160], [750, 260]],
+                        spikes: [[200, 380], [400, 380], [600, 380]]
+                    },
+                    // Level 5
+                    {
+                        platforms: [[0, 350, 60, 50], [100, 300, 40, 20], [200, 250, 40, 20], [300, 300, 40, 20], [400, 350, 40, 20], [500, 300, 40, 20], [600, 250, 40, 20], [700, 300, 100, 100]],
+                        coins: [[110, 260], [310, 260], [510, 260]],
+                        spikes: [[150, 380], [350, 380], [550, 380]]
+                    },
+                    // Level 6
+                    {
+                        platforms: [[0, 350, 100, 50], [150, 350, 100, 50], [300, 350, 100, 50], [500, 250, 100, 20], [700, 300, 100, 100]],
+                        coins: [[200, 310], [550, 210]],
+                        spikes: [[100, 330], [250, 330], [400, 380]]
+                    },
+                    // Level 7
+                    {
+                        platforms: [[0, 350, 60, 50], [100, 200, 200, 20], [400, 200, 200, 20], [700, 300, 100, 100]],
+                        coins: [[200, 160], [500, 160]],
+                        spikes: [[100, 180], [500, 180]]
+                    },
+                    // Level 8
+                    {
+                        platforms: [[0, 350, 60, 50], [150, 300, 60, 20], [300, 250, 60, 20], [450, 200, 60, 20], [600, 150, 60, 20], [700, 350, 100, 50]],
+                        coins: [[170, 260], [320, 210], [470, 160], [620, 110]],
+                        spikes: [[200, 380], [400, 380]]
+                    },
+                    // Level 9
+                    {
+                        platforms: [[0, 200, 50, 20], [100, 350, 600, 20], [750, 200, 50, 20]],
+                        coins: [[200, 310], [400, 310], [600, 310]],
+                        spikes: [[150, 330], [350, 330], [550, 330]]
+                    },
+                    // Level 10
+                    {
+                        platforms: [[0, 350, 50, 50], [80, 270, 40, 20], [160, 190, 40, 20], [240, 110, 40, 20], [320, 190, 40, 20], [400, 270, 40, 20], [480, 350, 40, 20], [560, 270, 40, 20], [640, 190, 40, 20], [720, 300, 80, 100]],
+                        coins: [[100, 230], [260, 70], [420, 230], [660, 150]],
+                        spikes: [[120, 380], [360, 380], [600, 380]]
+                    },
+                    // Level 11
+                    {
+                        platforms: [[0, 350, 100, 50], [200, 300, 20, 20], [300, 250, 20, 20], [400, 200, 20, 20], [500, 250, 20, 20], [600, 300, 20, 20], [700, 350, 100, 50]],
+                        coins: [[200, 260], [300, 210], [400, 160], [500, 210], [600, 260]],
+                        spikes: [[150, 380], [250, 380], [350, 380], [450, 380], [550, 380], [650, 380]]
+                    },
+                    // Level 12
+                    {
+                        platforms: [[0, 350, 50, 50], [100, 100, 600, 20], [750, 350, 50, 50]],
+                        coins: [[150, 60], [350, 60], [550, 60]],
+                        spikes: [[200, 380], [400, 380], [600, 380]]
+                    },
+                    // Level 13
+                    {
+                        platforms: [[0, 350, 50, 50], [100, 300, 50, 20], [200, 250, 50, 20], [300, 200, 50, 20], [400, 150, 50, 20], [500, 100, 50, 20], [600, 150, 50, 20], [700, 300, 100, 100]],
+                        coins: [[115, 260], [315, 160], [515, 60], [715, 260]],
+                        spikes: [[150, 380], [350, 380], [550, 380]]
+                    },
+                    // Level 14
+                    {
+                        platforms: [[0, 350, 800, 20]],
+                        coins: [[100, 310], [200, 310], [300, 310], [400, 310], [500, 310], [600, 310], [700, 310]],
+                        spikes: [[50, 330], [150, 330], [250, 330], [350, 330], [450, 330], [550, 330], [650, 330], [750, 330]]
+                    }
+                ];
+
+                const l = levels[Math.min(this.level - 1, levels.length - 1)];
+                l.platforms.forEach(p => this.entities.push(new Platform(...p)));
+                l.coins.forEach(c => this.entities.push(new Coin(...c)));
+                l.spikes.forEach(s => this.entities.push(new Spike(...s)));
             }
             nextLevel() {
                 this.level++;
-                if (this.level > 4) {
+                if (this.level > 14) {
                     this.state = 'won';
                     this.playSound(600, 0.5, 'sine');
                 } else {
@@ -282,6 +395,13 @@
             }
             update(deltaTime) {
                 super.update(deltaTime);
+
+                // Win round condition
+                const coinsRemaining = this.entities.filter(e => e instanceof Coin).length;
+                if (coinsRemaining === 0) {
+                    this.nextLevel();
+                }
+
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
                 this.clouds.forEach(c => {
                     c.x -= c.s;
@@ -289,6 +409,9 @@
                 });
             }
             draw() {
+                // HUD for two players
+                document.getElementById('coins').innerText = `P1: ${this.players[0].score} | P2: ${this.players[1].score}`;
+
                 // Sky gradient
                 const skyGrad = this.ctx.createLinearGradient(0, 0, 0, this.height);
                 skyGrad.addColorStop(0, '#4fc3f7');
@@ -319,6 +442,20 @@
                     this.ctx.fill();
                 });
                 this.ctx.globalAlpha = 1.0;
+
+                if (this.showTrajectory) {
+                    const traj = this.trajectories[Math.min(this.level - 1, this.trajectories.length - 1)];
+                    this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(traj[0].x, traj[0].y);
+                    for (let i = 1; i < traj.length; i++) {
+                        this.ctx.lineTo(traj[i].x, traj[i].y);
+                    }
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+                }
 
                 super.draw();
             }

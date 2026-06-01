@@ -38,19 +38,19 @@
     </style>
 </head>
 <body>
-    <div class="hud">DASHES: <span id="dashCount">1</span> | GOAL: <span id="distance">500</span>m | BEST: <span id="best">0</span></div>
+    <div class="hud">LEVEL: <span id="level">1</span> | DASHES: <span id="dashCount">1</span> | GOAL: <span id="distance">500</span>m | BEST: <span id="best">0</span></div>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
     <script src="../js/engine.js"></script>
     <script>
         class DashPlayer extends Entity {
-            constructor(x, y) {
+            constructor(x, y, targetDistance = 500) {
                 super(x, y, 30, 40, '#e94560');
                 this.canDash = true;
                 this.isDashing = false;
                 this.dashCooldown = 0;
-                this.targetDistance = 500;
+                this.targetDistance = targetDistance;
                 this.traveled = 0;
                 this.speed = 5;
                 this.trail = [];
@@ -101,8 +101,7 @@
                 document.getElementById('distance').innerText = remaining;
 
                 if (remaining <= 0) {
-                    game.state = 'won';
-                    game.playSound(800, 0.5);
+                    game.nextLevel();
                 }
 
                 game.entities.forEach(entity => {
@@ -151,7 +150,7 @@
             constructor(x, y, w, h, color) {
                 super(x, y, w, h, color);
             }
-            update() {}
+            update(game, deltaTime) {}
             draw(ctx) {
                 ctx.fillStyle = '#1a1a2e';
                 ctx.fillRect(this.x, this.y, this.width, this.height);
@@ -172,7 +171,7 @@
             constructor(x, y, width, height) {
                 super(x, y, width, height, '#00fff5');
             }
-            update() {}
+            update(game, deltaTime) {}
             draw(ctx) {
                 ctx.fillStyle = '#000';
                 ctx.strokeStyle = this.color;
@@ -192,6 +191,7 @@
         class DashGame extends Game {
             constructor() {
                 super('gameCanvas', { gravity: 0.6, friction: 0.9, hasFloor: false, gameId: 'midnight_dash' });
+                this.level = 1;
                 this.buildings = Array.from({length: 10}, (_, i) => ({
                     x: i * 150,
                     w: 80 + Math.random() * 60,
@@ -202,15 +202,44 @@
                 document.getElementById('best').innerText = this.highScore;
             }
             setupEntities() {
+                this.entities = [];
+                const targetDist = 400 + this.level * 200;
+
+                // Base platforms
                 this.entities.push(new Platform(0, 350, 200, 10, '#4e4e4e'));
                 this.entities.push(new Platform(250, 280, 150, 10, '#4e4e4e'));
                 this.entities.push(new Platform(450, 220, 120, 10, '#4e4e4e'));
                 this.entities.push(new Platform(600, 300, 150, 10, '#4e4e4e'));
                 this.entities.push(new Platform(100, 150, 100, 10, '#4e4e4e'));
-                this.entities.push(new Hazard(300, 260, 40, 20));
-                this.entities.push(new Hazard(650, 280, 60, 20));
-                this.entities.push(new Hazard(120, 130, 30, 20));
-                this.entities.push(new DashPlayer(50, 300));
+
+                // More hazards and platforms as levels increase
+                if (this.level >= 1) {
+                    this.entities.push(new Hazard(300, 260, 40, 20));
+                    this.entities.push(new Hazard(650, 280, 60, 20));
+                    this.entities.push(new Hazard(120, 130, 30, 20));
+                }
+                if (this.level >= 2) {
+                    this.entities.push(new Platform(300, 100, 100, 10, '#4e4e4e'));
+                    this.entities.push(new Hazard(320, 80, 40, 20));
+                }
+                if (this.level >= 3) {
+                    this.entities.push(new Platform(500, 350, 80, 10, '#4e4e4e'));
+                    this.entities.push(new Hazard(520, 330, 40, 20));
+                }
+
+                this.entities.push(new DashPlayer(50, 300, targetDist));
+                document.getElementById('level').innerText = this.level;
+                document.getElementById('distance').innerText = targetDist;
+            }
+            nextLevel() {
+                this.level++;
+                if (this.level > 5) {
+                    this.state = 'won';
+                    this.playSound(800, 0.5);
+                } else {
+                    this.playSound(1000, 0.2);
+                    this.setupEntities();
+                }
             }
             draw() {
                 // Background parallax buildings
