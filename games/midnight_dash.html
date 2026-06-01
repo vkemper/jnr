@@ -16,6 +16,7 @@
             height: 100vh;
             margin: 0;
             background: radial-gradient(circle, #1a1a2e 0%, #000 100%);
+            overflow: hidden;
         }
         canvas {
             background-color: #000;
@@ -52,6 +53,7 @@
                 this.targetDistance = 500;
                 this.traveled = 0;
                 this.speed = 5;
+                this.trail = [];
             }
 
             update(game, deltaTime) {
@@ -64,12 +66,14 @@
                 }
 
                 if (game.keys['ShiftLeft'] && this.canDash && !this.isDashing) {
-                    this.vx = (game.keys['ArrowLeft'] || game.keys['KeyA']) ? -20 : 20;
+                    this.vx = (game.keys['ArrowLeft'] || game.keys['KeyA']) ? -25 : 25;
                     this.isDashing = true;
                     this.canDash = false;
                     this.dashCooldown = 600;
                     game.playSound(600, 0.1, 'sawtooth');
                     setTimeout(() => { this.isDashing = false; }, 150);
+                    // Dash burst particles
+                    for(let i=0; i<15; i++) game.addParticle(this.x + this.width/2, this.y + this.height/2, '#00fff5');
                 }
 
                 if (this.dashCooldown > 0) {
@@ -81,6 +85,11 @@
                 document.getElementById('dashCount').innerText = this.canDash ? 1 : 0;
 
                 super.update(game);
+
+                // Trail effect
+                this.trail.push({x: this.x, y: this.y, life: 1.0});
+                if (this.trail.length > 10) this.trail.shift();
+                this.trail.forEach(t => t.life -= 0.1);
 
                 if (this.y > game.height) {
                     game.state = 'lost';
@@ -114,6 +123,28 @@
                     }
                 });
             }
+
+            draw(ctx) {
+                // Trail
+                this.trail.forEach(t => {
+                    ctx.globalAlpha = t.life * 0.3;
+                    ctx.fillStyle = this.isDashing ? '#00fff5' : this.color;
+                    ctx.fillRect(t.x, t.y, this.width, this.height);
+                });
+                ctx.globalAlpha = 1.0;
+
+                // Player Body (Silhouette)
+                ctx.fillStyle = '#000';
+                ctx.strokeStyle = this.isDashing ? '#00fff5' : this.color;
+                ctx.lineWidth = 2;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+                // Glowing Visor
+                ctx.fillStyle = this.isDashing ? '#fff' : '#00fff5';
+                const eyeX = this.vx >= 0 ? this.x + 18 : this.x + 2;
+                ctx.fillRect(eyeX, this.y + 10, 10, 3);
+            }
         }
 
         class Platform extends Entity {
@@ -121,6 +152,20 @@
                 super(x, y, w, h, color);
             }
             update() {}
+            draw(ctx) {
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.strokeStyle = '#4e4e4e';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                // Neon top edge
+                ctx.strokeStyle = '#e94560';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width, this.y);
+                ctx.stroke();
+            }
         }
 
         class Hazard extends Entity {
@@ -129,23 +174,66 @@
             }
             update() {}
             draw(ctx) {
-                ctx.fillStyle = this.color;
+                ctx.fillStyle = '#000';
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 2;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+                // Pulsing glow effect
+                const glow = Math.sin(Date.now() * 0.01) * 5 + 10;
+                ctx.shadowBlur = glow;
+                ctx.shadowColor = this.color;
+                ctx.strokeRect(this.x + 2, this.y + 2, this.width - 4, this.height - 4);
+                ctx.shadowBlur = 0;
             }
         }
 
-        const game = new Game('gameCanvas', { gravity: 0.6, friction: 0.9, hasFloor: false, gameId: 'midnight_dash' });
-        document.getElementById('best').innerText = game.highScore;
-        game.entities.push(new Platform(0, 350, 200, 10, '#4e4e4e'));
-        game.entities.push(new Platform(250, 280, 150, 10, '#4e4e4e'));
-        game.entities.push(new Platform(450, 220, 120, 10, '#4e4e4e'));
-        game.entities.push(new Platform(600, 300, 150, 10, '#4e4e4e'));
-        game.entities.push(new Platform(100, 150, 100, 10, '#4e4e4e'));
-        game.entities.push(new Hazard(300, 260, 40, 20));
-        game.entities.push(new Hazard(650, 280, 60, 20));
-        game.entities.push(new Hazard(120, 130, 30, 20));
-        game.entities.push(new DashPlayer(50, 300));
+        class DashGame extends Game {
+            constructor() {
+                super('gameCanvas', { gravity: 0.6, friction: 0.9, hasFloor: false, gameId: 'midnight_dash' });
+                this.buildings = Array.from({length: 10}, (_, i) => ({
+                    x: i * 150,
+                    w: 80 + Math.random() * 60,
+                    h: 100 + Math.random() * 200,
+                    speed: 0.2 + Math.random() * 0.2
+                }));
+                this.setupEntities();
+                document.getElementById('best').innerText = this.highScore;
+            }
+            setupEntities() {
+                this.entities.push(new Platform(0, 350, 200, 10, '#4e4e4e'));
+                this.entities.push(new Platform(250, 280, 150, 10, '#4e4e4e'));
+                this.entities.push(new Platform(450, 220, 120, 10, '#4e4e4e'));
+                this.entities.push(new Platform(600, 300, 150, 10, '#4e4e4e'));
+                this.entities.push(new Platform(100, 150, 100, 10, '#4e4e4e'));
+                this.entities.push(new Hazard(300, 260, 40, 20));
+                this.entities.push(new Hazard(650, 280, 60, 20));
+                this.entities.push(new Hazard(120, 130, 30, 20));
+                this.entities.push(new DashPlayer(50, 300));
+            }
+            draw() {
+                // Background parallax buildings
+                this.buildings.forEach(b => {
+                    const bx = (b.x - (this.entities.find(e => e instanceof DashPlayer)?.traveled || 0) * b.speed) % 1500;
+                    if (bx < -200) b.x += 1500;
 
+                    this.ctx.fillStyle = '#0a0a1a';
+                    this.ctx.fillRect(bx, this.height - b.h, b.w, b.h);
+
+                    // Windows
+                    this.ctx.fillStyle = Math.random() > 0.9 ? '#ff0' : '#1a1a2e';
+                    for(let r=0; r<b.h/20; r++) {
+                        for(let c=0; c<b.w/20; c++) {
+                            if ((r+c) % 3 === 0) this.ctx.fillRect(bx + 10 + c*20, this.height - b.h + 10 + r*20, 5, 5);
+                        }
+                    }
+                });
+                super.draw();
+            }
+        }
+
+        const game = new DashGame();
         document.body.addEventListener('keydown', () => {
             game.startMusic([
                 {f: 110.00, d: 0.2}, {f: 123.47, d: 0.2}, {f: 130.81, d: 0.2}, {f: 146.83, d: 0.4},

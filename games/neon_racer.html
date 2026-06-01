@@ -43,10 +43,11 @@
     <script>
         class Car extends Entity {
             constructor() {
-                super(180, 500, 40, 70, '#00e436');
+                super(180, 500, 45, 80, '#00e436');
                 this.speed = 7;
+                this.exhaustTimer = 0;
             }
-            update(game) {
+            update(game, deltaTime) {
                 if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.vx = -this.speed;
                 if (game.keys['ArrowRight'] || game.keys['KeyD']) this.vx = this.speed;
 
@@ -54,39 +55,64 @@
                 this.vx *= 0.8;
 
                 if (this.x < 60) this.x = 60;
-                if (this.x > game.width - 100) this.x = game.width - 100;
+                if (this.x > game.width - 105) this.x = game.width - 105;
+
+                // Exhaust particles
+                this.exhaustTimer += deltaTime;
+                if (this.exhaustTimer > 50) {
+                    game.addParticle(this.x + 10, this.y + this.height, '#555', {vy: 2, vx: (Math.random()-0.5), life: 0.5});
+                    game.addParticle(this.x + this.width - 15, this.y + this.height, '#555', {vy: 2, vx: (Math.random()-0.5), life: 0.5});
+                    this.exhaustTimer = 0;
+                }
 
                 game.entities.forEach(e => {
                     if (e instanceof Obstacle && this.collidesWith(e)) {
                         game.state = 'lost';
                         game.playDeathSound();
+                        for(let i=0; i<20; i++) game.addParticle(this.x + this.width/2, this.y + this.height/2, '#ff0');
                     }
                 });
             }
             draw(ctx) {
+                ctx.save();
+                // Body Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(this.x + 5, this.y + 5, this.width, this.height);
+
+                // Main Body
                 ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y + 10, this.width, this.height - 20);
-                ctx.fillStyle = '#008000';
-                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 30);
-                ctx.fillStyle = '#cdf';
-                ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 10);
-                ctx.fillRect(this.x + 8, this.y + 40, this.width - 16, 5);
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y + this.height - 10, this.width, 5);
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // Roof/Windshield
+                ctx.fillStyle = '#006400';
+                ctx.fillRect(this.x + 5, this.y + 15, this.width - 10, 40);
+                ctx.fillStyle = '#81d4fa'; // Glass
+                ctx.fillRect(this.x + 8, this.y + 20, this.width - 16, 12);
+                ctx.fillRect(this.x + 8, this.y + 45, this.width - 16, 5);
+
+                // Spoiler
+                ctx.fillStyle = '#004d00';
+                ctx.fillRect(this.x - 2, this.y + this.height - 10, this.width + 4, 6);
+
+                // Headlights
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(this.x + 5, this.y, 10, 5);
+                ctx.fillRect(this.x + this.width - 15, this.y, 10, 5);
+
+                // Wheels
                 ctx.fillStyle = '#333';
-                ctx.fillRect(this.x - 5, this.y + 10, 5, 15);
-                ctx.fillRect(this.x + this.width, this.y + 10, 5, 15);
-                ctx.fillRect(this.x - 5, this.y + this.height - 25, 5, 15);
-                ctx.fillRect(this.x + this.width, this.y + this.height - 25, 5, 15);
-                ctx.fillStyle = '#ff0';
-                ctx.fillRect(this.x + 5, this.y + 10, 10, 5);
-                ctx.fillRect(this.x + 25, this.y + 10, 10, 5);
+                ctx.fillRect(this.x - 5, this.y + 10, 6, 18);
+                ctx.fillRect(this.x + this.width - 1, this.y + 10, 6, 18);
+                ctx.fillRect(this.x - 5, this.y + this.height - 28, 6, 18);
+                ctx.fillRect(this.x + this.width - 1, this.y + this.height - 28, 6, 18);
+
+                ctx.restore();
             }
         }
 
         class Obstacle extends Entity {
             constructor(x, speed, isWiggly = false) {
-                super(x, -100, 40, 70, '#ff004d');
+                super(x, -100, 45, 80, '#ff004d');
                 this.vy = speed;
                 this.isWiggly = isWiggly;
                 this.wigglePhase = Math.random() * Math.PI * 2;
@@ -104,11 +130,16 @@
             }
             draw(ctx) {
                 ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y + 10, this.width, this.height - 20);
+                ctx.fillRect(this.x, this.y, this.width, this.height);
                 ctx.fillStyle = '#800';
-                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 30);
-                ctx.fillStyle = '#222';
+                ctx.fillRect(this.x + 5, this.y + 20, this.width - 10, 40);
+                ctx.fillStyle = '#1a1a1a'; // Glass
                 ctx.fillRect(this.x + 8, this.y + 25, this.width - 16, 15);
+
+                // Tail lights
+                ctx.fillStyle = '#ff5252';
+                ctx.fillRect(this.x + 5, this.y + this.height - 5, 10, 5);
+                ctx.fillRect(this.x + this.width - 15, this.y + this.height - 5, 10, 5);
             }
         }
 
@@ -128,9 +159,9 @@
                 this.timeElapsed += deltaTime;
                 this.spawnTimer += deltaTime;
 
-                const difficultyFactor = Math.min(1, this.timeElapsed / 60000); // Max difficulty at 60s
-                const spawnInterval = 1200 - (difficultyFactor * 800); // 1200ms -> 400ms
-                const baseSpeed = 4 + (difficultyFactor * 6); // 4-8 -> 10-14
+                const difficultyFactor = Math.min(1, this.timeElapsed / 60000);
+                const spawnInterval = 1200 - (difficultyFactor * 800);
+                const baseSpeed = 4 + (difficultyFactor * 6);
 
                 if (this.spawnTimer > spawnInterval) {
                     const x = 70 + Math.random() * (this.width - 140);
@@ -144,39 +175,41 @@
                 this.roadOffset = (this.roadOffset + scrollSpeed) % 80;
 
                 if (Math.random() < 0.05) {
-                    this.sideObjects.push({x: 15, y: -50, type: 'tree'});
-                    this.sideObjects.push({x: this.width - 35, y: -50, type: 'tree'});
+                    this.sideObjects.push({x: 15, y: -50, type: 'tree', s: 1 + Math.random()});
+                    this.sideObjects.push({x: this.width - 35, y: -50, type: 'tree', s: 1 + Math.random()});
                 }
-                this.sideObjects.forEach(obj => obj.y += 8);
-                this.sideObjects = this.sideObjects.filter(obj => obj.y < this.height);
+                if (Math.random() < 0.02) {
+                    this.sideObjects.push({x: 5, y: -100, type: 'lamp'});
+                    this.sideObjects.push({x: this.width - 10, y: -100, type: 'lamp'});
+                }
+
+                this.sideObjects.forEach(obj => obj.y += scrollSpeed);
+                this.sideObjects = this.sideObjects.filter(obj => obj.y < this.height + 100);
             }
             draw() {
-                // Background Gradient
-                const grad = this.ctx.createLinearGradient(0, 0, 0, this.height);
-                grad.addColorStop(0, '#001');
-                grad.addColorStop(1, '#005');
-                this.ctx.fillStyle = grad;
+                // Background
+                this.ctx.fillStyle = '#222';
                 this.ctx.fillRect(0, 0, this.width, this.height);
 
-                this.ctx.fillStyle = '#141';
+                // Grass/Sidewalk
+                this.ctx.fillStyle = '#1b5e20';
                 this.ctx.fillRect(0, 0, 50, this.height);
                 this.ctx.fillRect(this.width - 50, 0, 50, this.height);
 
-                // Road with slight gradient
-                const roadGrad = this.ctx.createLinearGradient(50, 0, this.width-50, 0);
-                roadGrad.addColorStop(0, '#333');
-                roadGrad.addColorStop(0.5, '#444');
-                roadGrad.addColorStop(1, '#333');
-                this.ctx.fillStyle = roadGrad;
+                // Road
+                this.ctx.fillStyle = '#333';
                 this.ctx.fillRect(50, 0, this.width - 100, this.height);
-                for(let i=-40; i<this.height; i+=40) {
-                    const y = (i + this.roadOffset) % (this.height + 40) - 40;
-                    this.ctx.fillStyle = (Math.floor((i + this.roadOffset)/40) % 2 === 0) ? '#fff' : '#f00';
+
+                // Road lines
+                for(let i=-80; i<this.height; i+=80) {
+                    const y = (i + this.roadOffset) % (this.height + 80) - 80;
+                    this.ctx.fillStyle = '#555'; // Curb
                     this.ctx.fillRect(50, y, 5, 40);
                     this.ctx.fillRect(this.width - 55, y, 5, 40);
                 }
-                this.ctx.strokeStyle = '#fff';
-                this.ctx.setLineDash([30, 50]);
+
+                this.ctx.strokeStyle = '#ffa000';
+                this.ctx.setLineDash([40, 40]);
                 this.ctx.lineDashOffset = -this.roadOffset;
                 this.ctx.lineWidth = 4;
                 this.ctx.beginPath();
@@ -184,16 +217,33 @@
                 this.ctx.lineTo(this.width / 2, this.height);
                 this.ctx.stroke();
                 this.ctx.setLineDash([]);
+
                 this.sideObjects.forEach(obj => {
                     if (obj.type === 'tree') {
-                        this.ctx.fillStyle = '#840';
+                        this.ctx.fillStyle = '#3e2723';
                         this.ctx.fillRect(obj.x + 5, obj.y + 20, 10, 20);
-                        this.ctx.fillStyle = '#060';
+                        this.ctx.fillStyle = '#2e7d32';
                         this.ctx.beginPath();
-                        this.ctx.arc(obj.x + 10, obj.y + 15, 15, 0, Math.PI*2);
+                        this.ctx.arc(obj.x + 10, obj.y + 15, 15 * obj.s, 0, Math.PI*2);
+                        this.ctx.fill();
+                    } else if (obj.type === 'lamp') {
+                        this.ctx.fillStyle = '#757575';
+                        this.ctx.fillRect(obj.x === 5 ? 0 : this.width-5, obj.y, 5, 100);
+                        this.ctx.fillStyle = '#ffff00';
+                        this.ctx.fillRect(obj.x === 5 ? 0 : this.width-15, obj.y, 15, 10);
+                        // Light cone
+                        const grad = this.ctx.createRadialGradient(obj.x === 5 ? 0 : this.width, obj.y+5, 0, obj.x === 5 ? 0 : this.width, obj.y+5, 150);
+                        grad.addColorStop(0, 'rgba(255, 255, 0, 0.2)');
+                        grad.addColorStop(1, 'transparent');
+                        this.ctx.fillStyle = grad;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(obj.x === 5 ? 0 : this.width, obj.y + 5);
+                        this.ctx.lineTo(obj.x === 5 ? 150 : this.width - 150, obj.y + 200);
+                        this.ctx.lineTo(obj.x === 5 ? 0 : this.width, obj.y + 200);
                         this.ctx.fill();
                     }
                 });
+
                 super.draw();
             }
         }

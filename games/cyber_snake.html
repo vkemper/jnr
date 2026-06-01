@@ -6,8 +6,8 @@
     <title>Cyber Snake - JNR</title>
     <style>
         body { background: #000; color: #fff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        canvas { background: #000; border: 4px solid #00f7ff; box-shadow: 0 0 20px #00f7ff; }
-        .ui { margin-bottom: 10px; font-size: 1.2rem; color: #00f7ff; }
+        canvas { background: #000; border: 4px solid #00f7ff; box-shadow: 0 0 30px rgba(0, 247, 255, 0.2); }
+        .ui { margin-bottom: 10px; font-size: 1.2rem; color: #00f7ff; text-shadow: 0 0 10px #00f7ff; }
         .back-link { margin-top: 10px; color: #444; text-decoration: none; font-size: 0.8rem; }
     </style>
 </head>
@@ -23,12 +23,13 @@
                 super('gameCanvas', { gravity: 0, friction: 1, gameId: 'cyber_snake' });
                 document.getElementById('best').innerText = this.highScore;
                 this.gridSize = 20;
-                this.snake = [{x: 10, y: 10}];
+                this.snake = [{x: 10, y: 10}, {x: 9, y: 10}, {x: 8, y: 10}];
                 this.direction = {x: 1, y: 0};
                 this.nextDirection = {x: 1, y: 0};
                 this.food = this.spawnFood();
                 this.moveTimer = 0;
                 this.moveInterval = 150;
+                this.gridOffset = 0;
             }
             spawnFood() {
                 return {
@@ -38,6 +39,8 @@
             }
             update(deltaTime) {
                 if (this.state !== 'playing') return;
+
+                this.gridOffset = (this.gridOffset + 0.5) % this.gridSize;
 
                 if ((this.keys['ArrowUp'] || this.keys['KeyW']) && this.direction.y === 0) this.nextDirection = {x: 0, y: -1};
                 if ((this.keys['ArrowDown'] || this.keys['KeyS']) && this.direction.y === 0) this.nextDirection = {x: 0, y: 1};
@@ -52,6 +55,7 @@
                     if (head.x < 0 || head.x >= this.width / this.gridSize || head.y < 0 || head.y >= this.height / this.gridSize || this.snake.some(s => s.x === head.x && s.y === head.y)) {
                         this.state = 'lost';
                         this.playDeathSound();
+                        for(let i=0; i<20; i++) this.addParticle(this.snake[0].x * this.gridSize + 10, this.snake[0].y * this.gridSize + 10, '#00f7ff');
                         return;
                     }
 
@@ -60,24 +64,87 @@
                         this.score += 10;
                         document.getElementById('score').innerText = this.score;
                         this.food = this.spawnFood();
-                        this.moveInterval = Math.max(50, this.moveInterval - 2);
+                        this.moveInterval = Math.max(60, this.moveInterval - 2);
                         this.playSound(800, 0.05);
+                        for(let i=0; i<10; i++) this.addParticle(head.x * this.gridSize + 10, head.y * this.gridSize + 10, '#ff004d');
                     } else {
                         this.snake.pop();
                     }
                     this.moveTimer = 0;
                 }
+                this.updateParticles(deltaTime);
             }
             draw() {
-                this.ctx.clearRect(0, 0, this.width, this.height);
-                this.ctx.fillStyle = '#00f7ff';
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                // Digital grid background
+                this.ctx.strokeStyle = 'rgba(0, 247, 255, 0.1)';
+                this.ctx.lineWidth = 1;
+                for(let i=0; i<=this.width; i+=this.gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(i, 0);
+                    this.ctx.lineTo(i, this.height);
+                    this.ctx.stroke();
+                }
+                for(let i=0; i<=this.height; i+=this.gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, i);
+                    this.ctx.lineTo(this.width, i);
+                    this.ctx.stroke();
+                }
+
+                // Food (Data Core)
+                const foodX = this.food.x * this.gridSize + 10;
+                const foodY = this.food.y * this.gridSize + 10;
+                this.drawGlow(foodX, foodY, 20, 'rgba(255, 0, 77, 0.3)');
+                this.ctx.fillStyle = '#ff004d';
+                this.ctx.fillRect(foodX - 6, foodY - 6, 12, 12);
+                this.ctx.strokeStyle = '#fff';
+                this.ctx.strokeRect(foodX - 4, foodY - 4, 8, 8);
+
+                // Snake
                 this.snake.forEach((s, i) => {
-                    this.ctx.globalAlpha = i === 0 ? 1 : 0.6;
-                    this.ctx.fillRect(s.x * this.gridSize, s.y * this.gridSize, this.gridSize - 2, this.gridSize - 2);
+                    const sx = s.x * this.gridSize;
+                    const sy = s.y * this.gridSize;
+
+                    if (i === 0) {
+                        // Head
+                        this.ctx.fillStyle = '#00f7ff';
+                        this.ctx.beginPath();
+                        this.ctx.roundRect(sx + 1, sy + 1, this.gridSize - 2, this.gridSize - 2, 5);
+                        this.ctx.fill();
+                        // Eyes
+                        this.ctx.fillStyle = '#000';
+                        if (this.direction.x === 1) {
+                            this.ctx.fillRect(sx + 12, sy + 4, 4, 4);
+                            this.ctx.fillRect(sx + 12, sy + 12, 4, 4);
+                        } else if (this.direction.x === -1) {
+                            this.ctx.fillRect(sx + 4, sy + 4, 4, 4);
+                            this.ctx.fillRect(sx + 4, sy + 12, 4, 4);
+                        } else if (this.direction.y === 1) {
+                            this.ctx.fillRect(sx + 4, sy + 12, 4, 4);
+                            this.ctx.fillRect(sx + 12, sy + 12, 4, 4);
+                        } else {
+                            this.ctx.fillRect(sx + 4, sy + 4, 4, 4);
+                            this.ctx.fillRect(sx + 12, sy + 4, 4, 4);
+                        }
+                    } else {
+                        // Body segments
+                        this.ctx.globalAlpha = 1 - (i / this.snake.length) * 0.8;
+                        this.ctx.fillStyle = '#00f7ff';
+                        this.ctx.beginPath();
+                        this.ctx.roundRect(sx + 2, sy + 2, this.gridSize - 4, this.gridSize - 4, 4);
+                        this.ctx.fill();
+
+                        // Connecting lines/details
+                        this.ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                        this.ctx.strokeRect(sx + 6, sy + 6, this.gridSize - 12, this.gridSize - 12);
+                    }
                 });
                 this.ctx.globalAlpha = 1;
-                this.ctx.fillStyle = '#ff004d';
-                this.ctx.fillRect(this.food.x * this.gridSize, this.food.y * this.gridSize, this.gridSize - 2, this.gridSize - 2);
+
+                this.drawParticles();
 
                 if (this.state !== 'playing') {
                     super.draw();

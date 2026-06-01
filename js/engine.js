@@ -15,6 +15,7 @@ class Game {
         this.score = 0;
         this.gameId = options.gameId || 'default';
         this.highScore = parseInt(localStorage.getItem(`jnr_highScore_${this.gameId}`)) || 0;
+        this.particles = [];
 
         window.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
@@ -94,12 +95,55 @@ class Game {
         this.entities.forEach(entity => {
             entity.update(this, deltaTime);
         });
+        this.updateParticles(deltaTime);
+    }
+
+    // Particle System
+    addParticle(x, y, color, options = {}) {
+        this.particles.push({
+            x, y,
+            vx: options.vx || (Math.random() - 0.5) * 4,
+            vy: options.vy || (Math.random() - 0.5) * 4,
+            life: options.life || 1.0,
+            decay: options.decay || 0.02,
+            size: options.size || 2 + Math.random() * 3,
+            color: color || '#fff'
+        });
+    }
+
+    updateParticles(deltaTime) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= p.decay;
+            if (p.life <= 0) this.particles.splice(i, 1);
+        }
+    }
+
+    drawParticles() {
+        this.particles.forEach(p => {
+            this.ctx.globalAlpha = p.life;
+            this.ctx.fillStyle = p.color;
+            this.ctx.fillRect(p.x, p.y, p.size, p.size);
+        });
+        this.ctx.globalAlpha = 1.0;
+    }
+
+    // Drawing Helpers
+    drawGlow(x, y, radius, color) {
+        const grad = this.ctx.createRadialGradient(x, y, 0, x, y, radius);
+        grad.addColorStop(0, color);
+        grad.addColorStop(1, 'transparent');
+        this.ctx.fillStyle = grad;
+        this.ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
     }
 
     draw() {
         this.entities.forEach(entity => {
             entity.draw(this.ctx);
         });
+        this.drawParticles();
 
         if (this.state !== 'playing') {
             this.checkHighScore();

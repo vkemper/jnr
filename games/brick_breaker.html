@@ -6,7 +6,7 @@
     <title>Brick Breaker - JNR</title>
     <style>
         body { background: #000; color: #fff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        canvas { background: #111; border: 4px solid #fff; }
+        canvas { background: #0a0a0a; border: 4px solid #fff; }
         .ui { margin-bottom: 10px; font-size: 1.2rem; color: #ffa300; }
         .back-link { margin-top: 10px; color: #444; text-decoration: none; font-size: 0.8rem; }
     </style>
@@ -20,7 +20,7 @@
     <script>
         class Ball extends Entity {
             constructor(x, y) {
-                super(x, y, 10, 10, '#fff');
+                super(x, y, 12, 12, '#fff');
                 this.vx = 4;
                 this.vy = -4;
             }
@@ -31,10 +31,12 @@
                 if (this.x < 0 || this.x > game.width - this.width) {
                     this.vx *= -1;
                     game.playSound(400, 0.05);
+                    for(let i=0; i<5; i++) game.addParticle(this.x, this.y + 6, '#fff', {vx: this.vx > 0 ? 2 : -2});
                 }
                 if (this.y < 0) {
                     this.vy *= -1;
                     game.playSound(400, 0.05);
+                    for(let i=0; i<5; i++) game.addParticle(this.x + 6, this.y, '#fff', {vy: 2});
                 }
                 if (this.y > game.height) {
                     game.state = 'lost';
@@ -45,6 +47,7 @@
                     this.vy = -Math.abs(this.vy);
                     this.vx = (this.x + this.width / 2 - (game.paddle.x + game.paddle.width / 2)) / (game.paddle.width / 2) * 5;
                     game.playSound(500, 0.05);
+                    for(let i=0; i<8; i++) game.addParticle(this.x + 6, this.y + 12, '#ffa300');
                 }
 
                 game.entities.forEach(e => {
@@ -54,14 +57,31 @@
                         game.score += 20;
                         document.getElementById('score').innerText = game.score;
                         game.playSound(600, 0.05);
+                        for(let i=0; i<15; i++) game.addParticle(e.x + 25, e.y + 10, e.color);
                     }
                 });
             }
             draw(ctx) {
-                ctx.fillStyle = this.color;
+                ctx.save();
+                // Outer glow
+                const grad = ctx.createRadialGradient(this.x + 6, this.y + 6, 0, this.x + 6, this.y + 6, 12);
+                grad.addColorStop(0, '#fff');
+                grad.addColorStop(1, 'transparent');
+                ctx.fillStyle = grad;
+                ctx.fillRect(this.x - 6, this.y - 6, 24, 24);
+
+                // Ball
+                ctx.fillStyle = '#fff';
                 ctx.beginPath();
-                ctx.arc(this.x + 5, this.y + 5, 5, 0, Math.PI * 2);
+                ctx.arc(this.x + 6, this.y + 6, 6, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Shine
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.beginPath();
+                ctx.arc(this.x + 4, this.y + 4, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
             }
         }
 
@@ -70,18 +90,48 @@
                 super(x, y, 50, 20, color);
             }
             update() {}
+            draw(ctx) {
+                // Main Brick
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // Highlight
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fillRect(this.x, this.y, this.width, 4);
+                ctx.fillRect(this.x, this.y, 4, this.height);
+
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(this.x, this.y + this.height - 4, this.width, 4);
+                ctx.fillRect(this.x + this.width - 4, this.y, 4, this.height);
+            }
         }
 
         class Paddle extends Entity {
             constructor() {
                 super(250, 370, 100, 15, '#ffa300');
-                this.speed = 8;
+                this.speed = 10;
             }
             update(game) {
                 if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
                 if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
                 if (this.x < 0) this.x = 0;
                 if (this.x > game.width - this.width) this.x = game.width - this.width;
+            }
+            draw(ctx) {
+                // Paddle with metallic look
+                const grad = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                grad.addColorStop(0, '#ffc107');
+                grad.addColorStop(0.5, '#ffa000');
+                grad.addColorStop(1, '#ff6f00');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.roundRect(this.x, this.y, this.width, this.height, 5);
+                ctx.fill();
+
+                // Highlight
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.fillRect(this.x + 5, this.y + 3, this.width - 10, 3);
             }
         }
 
@@ -92,7 +142,7 @@
                 this.paddle = new Paddle();
                 this.entities.push(this.paddle);
                 this.entities.push(new Ball(300, 300));
-                const colors = ['#f00', '#f80', '#ff0', '#0f0', '#00f'];
+                const colors = ['#e91e63', '#9c27b0', '#2196f3', '#4caf50', '#ffeb3b'];
                 for (let r = 0; r < 5; r++) {
                     for (let c = 0; c < 10; c++) {
                         this.entities.push(new Brick(20 + c * 56, 40 + r * 25, colors[r]));
@@ -105,6 +155,18 @@
                 if (this.entities.filter(e => e instanceof Brick).length === 0) {
                     this.state = 'won';
                 }
+            }
+            draw() {
+                // Background pattern
+                this.ctx.strokeStyle = '#111';
+                this.ctx.lineWidth = 2;
+                for(let i=0; i<this.width; i+=40) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(i, 0);
+                    this.ctx.lineTo(i, this.height);
+                    this.ctx.stroke();
+                }
+                super.draw();
             }
         }
         const game = new BreakoutGame();
