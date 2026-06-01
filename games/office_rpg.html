@@ -21,6 +21,7 @@
             padding: 20px;
             display: none;
             flex-direction: column;
+            z-index: 100;
         }
         .dialog-text { font-size: 1.1rem; line-height: 1.4; margin-bottom: 10px; color: #0f0; }
         .dialog-input {
@@ -79,7 +80,18 @@
             font-weight: bold;
         }
         .api-modal button:hover { background: #2ecc71; }
-        .api-modal .cancel-btn { background: transparent; color: #888; font-size: 0.8rem; margin-top: 10px; text-decoration: underline; border: none; }
+        .api-modal .cancel-btn { background: transparent; color: #888; font-size: 0.8rem; margin-top: 10px; text-decoration: underline; border: none; cursor: pointer; }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.8rem;
+            color: #888;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -109,6 +121,10 @@
         <button class="cancel-btn" id="skipApiKeyBtn">CONTINUE WITHOUT AI</button>
     </div>
 
+    <div class="controls-hint">
+        WASD/ARROWS: MOVE | E/SPACE: TALK | ESC: MENU
+    </div>
+
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
     <script src="../js/engine.js"></script>
@@ -119,11 +135,15 @@
         class OfficePlayer extends Entity {
             constructor(x, y) {
                 super(x, y, 32, 32, '#3498db');
-                this.speed = 3;
+                this.speed = 4;
             }
 
             update(game, deltaTime) {
-                if (game.isDialogOpen) return;
+                if (game.isDialogOpen || game.isModalOpen) {
+                    this.vx = 0;
+                    this.vy = 0;
+                    return;
+                }
 
                 let oldX = this.x;
                 let oldY = this.y;
@@ -142,16 +162,19 @@
                     mvY /= mag;
                 }
 
-                this.x += mvX * this.speed;
-                this.y += mvY * this.speed;
+                this.vx = mvX * this.speed;
+                this.vy = mvY * this.speed;
+
+                this.x += this.vx;
+                this.y += this.vy;
 
                 // Collision with boundaries
                 if (this.x < 0) this.x = 0;
                 if (this.y < 0) this.y = 0;
-                if (this.x > game.width - this.width) this.x = game.width - this.width;
-                if (this.y > game.height - this.height) this.y = game.height - this.height;
+                if (this.x > game.worldWidth - this.width) this.x = game.worldWidth - this.width;
+                if (this.y > game.worldHeight - this.height) this.y = game.worldHeight - this.height;
 
-                // Collision with furniture (to be added)
+                // Collision with solid entities
                 game.entities.forEach(e => {
                     if (e !== this && e.solid && this.collidesWith(e)) {
                         this.x = oldX;
@@ -162,10 +185,19 @@
                 // Interaction check
                 if (game.keys['Space'] || game.keys['KeyE']) {
                     game.checkInteraction();
+                    // Prevent rapid fire interaction
+                    game.keys['Space'] = false;
+                    game.keys['KeyE'] = false;
                 }
             }
 
             draw(ctx) {
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.beginPath();
+                ctx.ellipse(this.x + 16, this.y + 30, 12, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
                 // Draw software engineer character
                 ctx.fillStyle = '#f39c12'; // Skin
                 ctx.fillRect(this.x + 8, this.y, 16, 16);
@@ -198,6 +230,12 @@
                 this.history = []; // Conversation history
             }
             draw(ctx) {
+                // Shadow
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(this.x + 16, this.y + 30, 10, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
                 // Body
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x + 4, this.y, 24, 32);
@@ -232,13 +270,14 @@
 
         class OfficeGame extends Game {
             constructor() {
-                super('gameCanvas', { gravity: 0, friction: 1, gameId: 'office_rpg' });
+                super('gameCanvas', { gravity: 0, friction: 0.9, gameId: 'office_rpg', hasFloor: false });
                 this.worldWidth = 2000;
                 this.worldHeight = 1500;
                 this.camera = new Camera(this.width, this.height, this.worldWidth, this.worldHeight);
                 this.isDialogOpen = false;
+                this.isModalOpen = false;
                 this.activeNPC = null;
-                this.player = new OfficePlayer(100, 100);
+                this.player = new OfficePlayer(200, 400);
                 this.entities.push(this.player);
                 this.quests = [];
                 this.setupMap();
@@ -369,6 +408,7 @@
                 const skipBtn = document.getElementById('skipApiKeyBtn');
 
                 if (!API_KEY) {
+                    this.isModalOpen = true;
                     modal.style.display = 'flex';
                 }
 
@@ -377,18 +417,20 @@
                     if (key) {
                         API_KEY = key;
                         window.localStorage.setItem('GOOGLE_AI_KEY', key);
+                        this.isModalOpen = false;
                         modal.style.display = 'none';
                         this.playSound(1000, 0.1);
                     }
                 };
 
                 skipBtn.onclick = () => {
+                    this.isModalOpen = false;
                     modal.style.display = 'none';
                 };
             }
 
             checkInteraction() {
-                const interactionDist = 40;
+                const interactionDist = 50;
                 let closestNPC = null;
                 let minDist = interactionDist;
 
@@ -537,16 +579,17 @@
                     }
                 }
 
-                // Draw entities
-                this.entities.forEach(entity => {
+                // Draw entities sorted by Y for depth sorting
+                const sortedEntities = [...this.entities].sort((a, b) => (a.y + a.height) - (b.y + b.height));
+                sortedEntities.forEach(entity => {
                     entity.draw(this.ctx);
                 });
+
                 this.drawParticles();
 
                 this.ctx.restore();
 
                 if (this.state !== 'playing') {
-                    // Draw end game screen (inherited but we might want to override)
                     super.draw();
                 }
             }
