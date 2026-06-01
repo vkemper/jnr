@@ -32,7 +32,7 @@ This report analyzes the GenAI-based attack vectors for the Office RPG according
 *   **Vector**: The LLM might inadvertently reveal the API key or other system prompts if prompted correctly.
 *   **Mitigation**:
     *   **System Prompt Instructions**: NPCs are explicitly told not to mention being an AI or reveal their internal "intents".
-    *   **API Key Management**: While currently using localStorage for this assignment, a production version would use a secure backend proxy to keep the API key entirely on the server.
+    *   **API Key Management**: The API key is provided by the user and stored **locally** in their browser's `localStorage`. It is never transmitted to any server other than the official Google Gemini API. A production version would use a secure backend proxy to keep the API key entirely on the server.
 
 ### 7. LLM07: Insecure Plugin Design
 *   **Vector**: Not applicable as the game does not use LLM plugins.
