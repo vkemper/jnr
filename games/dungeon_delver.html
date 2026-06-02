@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <div class="ui">GOLD: <span id="score">0</span> | BEST: <span id="best">0</span></div>
+    <div class="ui">GOLD: <span id="score">0</span> | BEST: <span id="best">0</span> | LEVEL: <span id="levelDisplay">1</span></div>
     <canvas id="gameCanvas" width="400" height="400"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
@@ -80,8 +80,11 @@
                         for(let i=0; i<10; i++) game.addParticle(e.x + 8, e.y + 8, '#ffd700');
                     }
                     if (e instanceof Exit && this.collidesWith(e)) {
-                        game.state = 'won';
-                        game.playSound(1000, 0.5);
+                        const remainingGold = game.entities.some(ent => ent instanceof Gold && !ent.markedForDeletion);
+                        if (!remainingGold) {
+                            game.nextLevel();
+                            game.playSound(1000, 0.5);
+                        }
                     }
                 });
             }
@@ -112,12 +115,12 @@
         }
 
         class Enemy extends Entity {
-            constructor(x, y, x2, y2) {
+            constructor(x, y, x2, y2, speed = 2) {
                 super(x, y, 24, 24, '#f44336');
                 this.start = {x, y};
                 this.end = {x: x2, y: y2};
                 this.target = this.end;
-                this.speed = 2;
+                this.speed = speed;
             }
             update(game, deltaTime) {
                 const dx = this.target.x - this.x;
@@ -229,27 +232,124 @@
             constructor() {
                 super('gameCanvas', { gravity: 0, friction: 1, gameId: 'dungeon_delver' });
                 document.getElementById('best').innerText = this.highScore;
-                this.entities.push(new Delver());
-                this.setupMap();
+                this.player = new Delver();
+                this.level = 1;
+                this.maxLevels = 11;
+                this.setupLevel();
             }
-            setupMap() {
-                // Outer walls
-                for(let i=0; i<5; i++) {
-                    this.entities.push(new Wall(100, i*40, 20, 40));
-                    this.entities.push(new Wall(200, 400 - i*40 - 40, 20, 40));
-                    this.entities.push(new Wall(300, i*40 + 100, 20, 40));
+            setupLevel() {
+                this.entities = [this.player];
+                this.player.x = 20;
+                this.player.y = 20;
+                this.player.isDashing = false;
+
+                if (this.level === 1) {
+                    for(let i=0; i<5; i++) {
+                        this.entities.push(new Wall(100, i*40, 20, 40));
+                        this.entities.push(new Wall(200, 400 - i*40 - 40, 20, 40));
+                        this.entities.push(new Wall(300, i*40 + 100, 20, 40));
+                    }
+                    this.entities.push(new Gold(150, 50));
+                    this.entities.push(new Gold(250, 350));
+                    this.entities.push(new Gold(50, 300));
+                    this.entities.push(new Trap(150, 200));
+                    this.entities.push(new Trap(250, 100));
+                    this.entities.push(new Trap(50, 150));
+                    this.entities.push(new Enemy(120, 10, 120, 350));
+                    this.entities.push(new Enemy(220, 350, 220, 10));
+                    this.entities.push(new Exit(360, 360));
+                } else if (this.level === 2) {
+                    for(let i=0; i<5; i++) {
+                        this.entities.push(new Wall(100, i*40, 20, 40));
+                        this.entities.push(new Wall(200, 400 - i*40 - 40, 20, 40));
+                        this.entities.push(new Wall(300, i*40 + 100, 20, 40));
+                    }
+                    this.entities.push(new Gold(150, 50));
+                    this.entities.push(new Gold(250, 350));
+                    this.entities.push(new Gold(50, 300));
+                    this.entities.push(new Trap(150, 200));
+                    this.entities.push(new Trap(250, 100));
+                    this.entities.push(new Trap(50, 150));
+                    this.entities.push(new Enemy(120, 10, 120, 350, 3));
+                    this.entities.push(new Enemy(220, 350, 220, 10, 3));
+                    this.entities.push(new Enemy(60, 100, 340, 100, 2.5));
+                    this.entities.push(new Exit(360, 360));
+                } else if (this.level === 3) {
+                    this.entities.push(new Wall(0, 100, 300, 20));
+                    this.entities.push(new Wall(100, 200, 300, 20));
+                    this.entities.push(new Wall(0, 300, 300, 20));
+                    this.entities.push(new Gold(350, 50));
+                    this.entities.push(new Gold(50, 150));
+                    this.entities.push(new Gold(350, 250));
+                    this.entities.push(new Trap(200, 50));
+                    this.entities.push(new Trap(150, 150));
+                    this.entities.push(new Trap(250, 250));
+                    this.entities.push(new Enemy(350, 20, 350, 380, 4));
+                    this.entities.push(new Exit(50, 350));
+                } else if (this.level === 4) {
+                    for(let i=0; i<8; i++) this.entities.push(new Wall(i*50, 150, 30, 100));
+                    this.entities.push(new Gold(200, 50));
+                    this.entities.push(new Gold(200, 350));
+                    this.entities.push(new Enemy(10, 50, 380, 50, 5));
+                    this.entities.push(new Enemy(380, 350, 10, 350, 5));
+                    this.entities.push(new Trap(100, 280));
+                    this.entities.push(new Trap(300, 280));
+                    this.entities.push(new Exit(360, 200));
+                } else if (this.level === 5) {
+                    for(let i=0; i<10; i++) this.entities.push(new Gold(Math.random()*300+50, Math.random()*300+50));
+                    for(let i=0; i<5; i++) this.entities.push(new Enemy(Math.random()*400, 0, Math.random()*400, 400, 2));
+                    this.entities.push(new Exit(360, 360));
+                } else if (this.level === 6) {
+                    this.entities.push(new Wall(50, 50, 300, 20));
+                    this.entities.push(new Wall(50, 330, 300, 20));
+                    this.entities.push(new Wall(50, 50, 20, 300));
+                    this.entities.push(new Wall(330, 50, 20, 300));
+                    this.entities.push(new Gold(200, 200));
+                    for(let i=0; i<4; i++) this.entities.push(new Enemy(80 + i*60, 80, 80 + i*60, 300, 3));
+                    this.entities.push(new Exit(20, 360));
+                } else if (this.level === 7) {
+                    for(let i=0; i<15; i++) this.entities.push(new Trap(Math.random()*350, Math.random()*350));
+                    this.entities.push(new Gold(360, 20));
+                    this.entities.push(new Gold(20, 360));
+                    this.entities.push(new Enemy(0, 0, 400, 400, 4));
+                    this.entities.push(new Enemy(400, 0, 0, 400, 4));
+                    this.entities.push(new Exit(200, 200));
+                } else if (this.level === 8) {
+                    for(let i=0; i<6; i++) this.entities.push(new Wall(i*70, 0, 20, 300));
+                    this.entities.push(new Gold(350, 350));
+                    this.entities.push(new Enemy(10, 350, 380, 350, 6));
+                    this.entities.push(new Exit(20, 20));
+                } else if (this.level === 9) {
+                    for(let i=0; i<20; i++) this.entities.push(new Wall(Math.random()*350, Math.random()*350, 20, 20));
+                    this.entities.push(new Gold(200, 200));
+                    this.entities.push(new Enemy(200, 10, 200, 390, 5));
+                    this.entities.push(new Enemy(10, 200, 390, 200, 5));
+                    this.entities.push(new Exit(360, 360));
+                } else if (this.level === 10) {
+                    for(let i=0; i<10; i++) this.entities.push(new Trap(i*40, 200));
+                    this.entities.push(new Gold(200, 50));
+                    this.entities.push(new Gold(200, 350));
+                    this.entities.push(new Enemy(0, 180, 400, 180, 7));
+                    this.entities.push(new Enemy(400, 220, 0, 220, 7));
+                    this.entities.push(new Exit(360, 20));
+                } else if (this.level === 11) {
+                    for(let i=0; i<3; i++) {
+                        this.entities.push(new Enemy(Math.random()*400, Math.random()*400, Math.random()*400, Math.random()*400, 5));
+                        this.entities.push(new Trap(Math.random()*300+50, Math.random()*300+50));
+                        this.entities.push(new Gold(Math.random()*300+50, Math.random()*300+50));
+                    }
+                    this.entities.push(new Wall(150, 150, 100, 100));
+                    this.entities.push(new Exit(190, 190));
                 }
-                this.entities.push(new Gold(150, 50));
-                this.entities.push(new Gold(250, 350));
-                this.entities.push(new Gold(50, 300));
-                this.entities.push(new Trap(150, 200));
-                this.entities.push(new Trap(250, 100));
-                this.entities.push(new Trap(50, 150));
-
-                this.entities.push(new Enemy(120, 10, 120, 350));
-                this.entities.push(new Enemy(220, 350, 220, 10));
-
-                this.entities.push(new Exit(360, 360));
+            }
+            nextLevel() {
+                this.level++;
+                if (this.level > this.maxLevels) {
+                    this.state = 'won';
+                } else {
+                    document.getElementById('levelDisplay').innerText = this.level;
+                    this.setupLevel();
+                }
             }
             update(deltaTime) {
                 super.update(deltaTime);

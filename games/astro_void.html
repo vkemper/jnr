@@ -114,10 +114,11 @@
         }
 
         class Asteroid extends Entity {
-            constructor(x, y, speed) {
+            constructor(x, y, speed, vy = 0) {
                 const size = 30 + Math.random() * 40;
                 super(x, y, size, size, '#888');
                 this.vx = -speed;
+                this.vy = vy;
                 this.points = [];
                 const res = 8;
                 for(let i=0; i<res; i++) {
@@ -130,8 +131,9 @@
             }
             update(game, deltaTime) {
                 this.x += this.vx;
+                this.y += this.vy;
                 this.rotation += this.rotSpeed;
-                if (this.x < -100) this.markedForDeletion = true;
+                if (this.x < -100 || this.y < -100 || this.y > game.height + 100) this.markedForDeletion = true;
             }
             draw(ctx) {
                 ctx.save();
@@ -166,6 +168,7 @@
                 document.getElementById('best').innerText = this.highScore;
                 this.entities.push(new Ship());
                 this.spawnTimer = 0;
+                this.gameTime = 0;
                 this.stars = Array.from({length: 80}, () => ({
                     x: Math.random() * 800,
                     y: Math.random() * 400,
@@ -175,9 +178,17 @@
             }
             update(deltaTime) {
                 super.update(deltaTime);
+                this.gameTime += deltaTime;
                 this.spawnTimer += deltaTime;
-                if (this.spawnTimer > 800) {
-                    this.entities.push(new Asteroid(850, Math.random() * 350, 3 + Math.random() * 4));
+
+                // Increase density over time: spawn interval decreases from 800ms down to 200ms
+                const spawnInterval = Math.max(200, 800 - (this.gameTime / 1000) * 10);
+
+                if (this.spawnTimer > spawnInterval) {
+                    const speed = 3 + Math.random() * 4;
+                    // Oblique trajectory: random vy between -1.5 and 1.5
+                    const vy = (Math.random() - 0.5) * 3;
+                    this.entities.push(new Asteroid(850, Math.random() * 350, speed, vy));
                     this.spawnTimer = 0;
                 }
                 this.stars.forEach(s => {
