@@ -92,9 +92,13 @@ class Game {
     }
 
     update(deltaTime) {
-        this.entities.forEach(entity => {
+        for (let i = this.entities.length - 1; i >= 0; i--) {
+            const entity = this.entities[i];
             entity.update(this, deltaTime);
-        });
+            if (entity.markedForDeletion) {
+                this.entities.splice(i, 1);
+            }
+        }
         this.updateParticles(deltaTime);
     }
 

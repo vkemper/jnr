@@ -46,6 +46,27 @@
         .quest-item { font-size: 0.9rem; margin-bottom: 5px; }
         .quest-completed { text-decoration: line-through; color: #888; }
 
+        .inventory-gui {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            gap: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px;
+            border: 1px solid #555;
+            z-index: 50;
+        }
+        .inventory-slot {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.05);
+        }
+
         .api-modal {
             position: absolute;
             top: 50%;
@@ -59,6 +80,39 @@
             flex-direction: column;
             width: 400px;
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        .intro-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 40px;
+            text-align: center;
+        }
+        .intro-content {
+            max-width: 600px;
+            border: 2px solid #ffa300;
+            background: #111;
+            padding: 30px;
+            color: #0f0;
+        }
+        .intro-btn {
+            margin-top: 20px;
+            background: #ffa300;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
         }
         .api-modal h2 { margin-top: 0; color: #ffa300; }
         .api-modal p { font-size: 0.9rem; color: #bdc3c7; line-height: 1.4; }
@@ -91,6 +145,7 @@
             background: rgba(0,0,0,0.5);
             padding: 5px 10px;
             pointer-events: none;
+            z-index: 50;
         }
         .debug-btn {
             position: absolute;
@@ -129,6 +184,8 @@
         <div class="stats">OFFICE RPG: ALIEN INSURANCE</div>
     </div>
 
+    <div class="inventory-gui" id="inventoryGUI"></div>
+
     <div class="quest-log" id="questLog">
         <div style="font-weight: bold; margin-bottom: 5px; color: #ffa300;">QUESTS</div>
         <div id="questList"></div>
@@ -140,6 +197,16 @@
         <div id="characterName" style="font-weight: bold; color: #29adff; margin-bottom: 5px;">Name</div>
         <div class="dialog-text" id="dialogText">Hello there!</div>
         <input type="text" class="dialog-input" id="dialogInput" placeholder="Type your response..." autocomplete="off">
+    </div>
+
+    <div class="intro-overlay" id="introOverlay">
+        <div class="intro-content">
+            <h1 style="color: #ffa300;">MISSION BRIEFING</h1>
+            <p>Welcome, Agent. The <b>Xylthid Union</b> has quietly infiltrated this insurance firm. They've replaced the board of directors with chitinous imposters and are using our claim systems to fund their Hive Mother.</p>
+            <p>Your goal is to investigate the office, gather intel from the staff, and find a way into the <b>High-Security Server Room</b> where the Alien King is overseeing the final upload.</p>
+            <p style="color: #fff; margin-top: 20px;">FIRST OBJECTIVE: Find the <b>Red Key Card</b> in the Reception area and talk to Alice in QA.</p>
+            <button class="intro-btn" onclick="document.getElementById('introOverlay').style.display='none'">START INVESTIGATION</button>
+        </div>
     </div>
 
     <div class="api-modal" id="apiModal">
@@ -154,8 +221,8 @@
         <button class="cancel-btn" id="skipApiKeyBtn">CONTINUE WITHOUT AI (RESTRICTED DIALOG)</button>
     </div>
 
-    <div class="controls-hint">
-        WASD/ARROWS: MOVE | E/SPACE: TALK | ESC: MENU
+    <div class="controls-hint" id="controlsHint">
+        WASD/ARROWS: MOVE | E/SPACE: TALK | ESC: MENU | F: FIRE CANNON
     </div>
 
     <button class="debug-btn" id="debugBtn">DIAGNOSTICS</button>
@@ -172,6 +239,7 @@
             constructor(x, y) {
                 super(x, y, 32, 32, '#3498db');
                 this.speed = 4;
+                this.inventory = [];
             }
 
             update(game, deltaTime) {
@@ -218,12 +286,32 @@
                     }
                 });
 
+                // Item pickup
+                game.entities.forEach(e => {
+                    if (e instanceof Item && this.collidesWith(e)) {
+                        if (this.inventory.length < 10) {
+                            this.inventory.push(e);
+                            e.markedForDeletion = true;
+                            game.playSound(600, 0.1);
+                            game.updateInventoryUI();
+                        }
+                    }
+                });
+
                 // Interaction check
                 if (game.keys['Space'] || game.keys['KeyE']) {
                     game.checkInteraction();
                     // Prevent rapid fire interaction
                     game.keys['Space'] = false;
                     game.keys['KeyE'] = false;
+                }
+
+                // Weapon firing (Silly Weapon: The Confetti Cannon)
+                if (game.keys['KeyF']) {
+                    const vx = 8;
+                    game.entities.push(new Projectile(this.x + 16, this.y + 16, vx, 0));
+                    game.playSound(1200, 0.1, 'square');
+                    game.keys['KeyF'] = false;
                 }
             }
 
@@ -248,11 +336,111 @@
             }
         }
 
+        class Item extends Entity {
+            constructor(x, y, color, name, type) {
+                super(x, y, 20, 20, color);
+                this.name = name;
+                this.type = type;
+                this.solid = false;
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+            }
+        }
+
         class Furniture extends Entity {
             constructor(x, y, w, h, color, name = 'Furniture') {
                 super(x, y, w, h, color);
                 this.solid = true;
                 this.name = name;
+            }
+        }
+
+        class Door extends Furniture {
+            constructor(x, y, w, h, color, requiredKey) {
+                super(x, y, w, h, color, 'Door');
+                this.requiredKey = requiredKey;
+                this.isOpen = false;
+            }
+            update(game, deltaTime) {
+                if (this.isOpen) return;
+                const dist = Math.sqrt(Math.pow(game.player.x - this.x, 2) + Math.pow(game.player.y - this.y, 2));
+                if (dist < 60) {
+                    const key = game.player.inventory.find(i => i.type === 'keycard' && i.color === this.requiredKey);
+                    if (key) {
+                        this.isOpen = true;
+                        this.solid = false;
+                        game.playSound(400, 0.2);
+                    }
+                }
+            }
+            draw(ctx) {
+                if (this.isOpen) {
+                    ctx.globalAlpha = 0.3;
+                }
+                super.draw(ctx);
+                // Door frame
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class Projectile extends Entity {
+            constructor(x, y, vx, vy) {
+                super(x, y, 10, 10, '#f1c40f');
+                this.vx = vx;
+                this.vy = vy;
+                this.solid = false;
+            }
+            update(game, deltaTime) {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > game.worldWidth || this.y < 0 || this.y > game.worldHeight) {
+                    this.markedForDeletion = true;
+                }
+                game.entities.forEach(e => {
+                    if (e instanceof AlienKing && this.collidesWith(e)) {
+                        e.takeDamage(10);
+                        this.markedForDeletion = true;
+                        game.playSound(200, 0.1);
+                    }
+                });
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x + 5, this.y + 5, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class AlienKing extends NPC {
+            constructor(x, y) {
+                super(x, y, '#ff00ff', 'Alien King', 'Leader', 'Arrogant, ancient, hates confetti.');
+                this.health = 100;
+                this.width = 64;
+                this.height = 64;
+            }
+            takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.markedForDeletion = true;
+                    window.game.state = 'won';
+                }
+            }
+            draw(ctx) {
+                super.draw(ctx);
+                // Health bar
+                ctx.fillStyle = '#f00';
+                ctx.fillRect(this.x, this.y - 25, 64, 5);
+                ctx.fillStyle = '#0f0';
+                ctx.fillRect(this.x, this.y - 25, (this.health / 100) * 64, 5);
             }
         }
 
@@ -264,7 +452,60 @@
                 this.traits = traits;
                 this.solid = true;
                 this.history = []; // Conversation history
+                this.memory = ""; // Persistent memory summary
+                this.moveTimer = Math.random() * 2000;
+                this.isMoving = false;
+                this.startX = x;
+                this.startY = y;
+                this.walkAnim = 0;
             }
+
+            update(game, deltaTime) {
+                if (game.isDialogOpen || game.isModalOpen) {
+                    this.vx = 0;
+                    this.vy = 0;
+                    return;
+                }
+
+                this.moveTimer -= deltaTime;
+                if (this.moveTimer <= 0) {
+                    if (this.isMoving) {
+                        this.vx = 0;
+                        this.vy = 0;
+                        this.isMoving = false;
+                        this.moveTimer = 2000 + Math.random() * 3000;
+                    } else {
+                        const angle = Math.random() * Math.PI * 2;
+                        this.vx = Math.cos(angle) * 0.5;
+                        this.vy = Math.sin(angle) * 0.5;
+                        this.isMoving = true;
+                        this.moveTimer = 1000 + Math.random() * 2000;
+                    }
+                }
+
+                if (this.isMoving) {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.walkAnim += deltaTime * 0.01;
+
+                    // Keep near start position
+                    const distFromStart = Math.sqrt((this.x - this.startX)**2 + (this.y - this.startY)**2);
+                    if (distFromStart > 50) {
+                        this.vx *= -1;
+                        this.vy *= -1;
+                    }
+
+                    // Collision with walls
+                    game.entities.forEach(e => {
+                        if (e !== this && e.solid && this.collidesWith(e)) {
+                            this.x -= this.vx;
+                            this.y -= this.vy;
+                            this.moveTimer = 0;
+                        }
+                    });
+                }
+            }
+
             draw(ctx) {
                 // Shadow
                 ctx.fillStyle = 'rgba(0,0,0,0.2)';
@@ -272,17 +513,34 @@
                 ctx.ellipse(this.x + 16, this.y + 30, 10, 5, 0, 0, Math.PI * 2);
                 ctx.fill();
 
+                // Legs
+                const legOff = Math.sin(this.walkAnim) * 5;
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x + 6, this.y + 24 + (this.isMoving ? legOff : 0), 6, 8);
+                ctx.fillRect(this.x + 20, this.y + 24 + (this.isMoving ? -legOff : 0), 6, 8);
+
                 // Body
                 ctx.fillStyle = this.color;
-                ctx.fillRect(this.x + 4, this.y, 24, 32);
+                ctx.fillRect(this.x + 4, this.y, 24, 26);
+
                 // Head
                 ctx.fillStyle = '#f1c40f';
                 ctx.fillRect(this.x + 8, this.y - 8, 16, 16);
+
+                // Hair/Hat
+                ctx.fillStyle = '#442200';
+                ctx.fillRect(this.x + 8, this.y - 10, 16, 4);
+
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x + 10, this.y - 2, 2, 2);
+                ctx.fillRect(this.x + 20, this.y - 2, 2, 2);
+
                 // Name tag
                 ctx.fillStyle = '#fff';
                 ctx.font = '10px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(this.name, this.x + 16, this.y - 12);
+                ctx.fillText(this.name, this.x + 16, this.y - 15);
             }
         }
 
@@ -313,10 +571,12 @@
                 window.addEventListener('keydown', (e) => {
                     if (this.isModalOpen || (this.isDialogOpen && document.activeElement === document.getElementById('dialogInput'))) {
                         if (e.code === 'Escape') window.location.href = '../index.html';
+                        if (e.code === 'KeyX' && this.isDialogOpen) this.closeDialog();
                         return;
                     }
                     this.keys[e.code] = true;
                     if (e.code === 'Escape') window.location.href = '../index.html';
+                    if (e.code === 'KeyX' && this.isDialogOpen) this.closeDialog();
                 });
 
                 this.worldWidth = 2000;
@@ -332,6 +592,75 @@
                 this.setupNPCs();
                 this.setupQuests();
                 this.bindUI();
+                this.updateInventoryUI();
+                this.initFogOfWar();
+            }
+
+            initFogOfWar() {
+                this.fogTileSize = 40;
+                this.fogCols = Math.ceil(this.worldWidth / this.fogTileSize);
+                this.fogRows = Math.ceil(this.worldHeight / this.fogTileSize);
+                this.visibilityMap = Array(this.fogRows).fill().map(() => Array(this.fogCols).fill(0)); // 0: hidden, 1: visited
+            }
+
+            updateFogOfWar() {
+                const px = Math.floor(this.player.x / this.fogTileSize);
+                const py = Math.floor(this.player.y / this.fogTileSize);
+                const radius = 5;
+
+                for (let r = -radius; r <= radius; r++) {
+                    for (let c = -radius; c <= radius; c++) {
+                        const row = py + r;
+                        const col = px + c;
+                        if (row >= 0 && row < this.fogRows && col >= 0 && col < this.fogCols) {
+                            const dist = Math.sqrt(r * r + c * c);
+                            if (dist <= radius) {
+                                // Check if line of sight is blocked by a solid wall or closed door
+                                if (this.hasLineOfSight(this.player.x + 16, this.player.y + 16, (col + 0.5) * this.fogTileSize, (row + 0.5) * this.fogTileSize)) {
+                                    this.visibilityMap[row][col] = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            hasLineOfSight(x1, y1, x2, y2) {
+                const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+                const step = 10;
+                const steps = dist / step;
+                for (let i = 1; i < steps; i++) {
+                    const checkX = x1 + (x2 - x1) * (i / steps);
+                    const checkY = y1 + (y2 - y1) * (i / steps);
+                    for (const e of this.entities) {
+                        if (e.solid && (e instanceof Furniture || (e instanceof Door && !e.isOpen))) {
+                            if (checkX > e.x && checkX < e.x + e.width && checkY > e.y && checkY < e.y + e.height) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+
+            updateInventoryUI() {
+                const gui = document.getElementById('inventoryGUI');
+                gui.innerHTML = '';
+                for (let i = 0; i < 10; i++) {
+                    const slot = document.createElement('div');
+                    slot.className = 'inventory-slot';
+                    if (this.player.inventory[i]) {
+                        const item = this.player.inventory[i];
+                        const itemDiv = document.createElement('div');
+                        itemDiv.style.width = '20px';
+                        itemDiv.style.height = '20px';
+                        itemDiv.style.background = item.color;
+                        itemDiv.style.border = '1px solid #fff';
+                        itemDiv.title = item.name;
+                        slot.appendChild(itemDiv);
+                    }
+                    gui.appendChild(slot);
+                }
             }
 
             setupMap() {
@@ -343,12 +672,15 @@
 
                 // Inner Rooms/Partitions
                 this.entities.push(new Furniture(500, 0, 40, 400, '#2c3e50', 'Partition'));
+                this.entities.push(new Door(500, 400, 40, 150, '#e74c3c', '#e74c3c')); // Red Door
                 this.entities.push(new Furniture(500, 550, 40, 950, '#2c3e50', 'Partition'));
 
                 this.entities.push(new Furniture(1000, 0, 40, 800, '#2c3e50', 'Partition'));
+                this.entities.push(new Door(1000, 800, 40, 200, '#3498db', '#3498db')); // Blue Door
                 this.entities.push(new Furniture(1000, 1000, 40, 500, '#2c3e50', 'Partition'));
 
                 this.entities.push(new Furniture(1500, 400, 500, 40, '#2c3e50', 'Partition'));
+                this.entities.push(new Door(1500, 1100, 500, 40, '#2ecc71', '#2ecc71')); // Green Door (Server Room)
 
                 // Desks and decorations (more varied)
                 for(let i = 0; i < 25; i++) {
@@ -376,6 +708,21 @@
                 this.entities.push(new Furniture(1600, 1100, 60, 120, '#2ecc71', 'Server Rack 1'));
                 this.entities.push(new Furniture(1700, 1100, 60, 120, '#2ecc71', 'Server Rack 2'));
                 this.entities.push(new Furniture(1800, 1100, 60, 120, '#2ecc71', 'Server Rack 3'));
+
+                // Key Cards
+                this.entities.push(new Item(100, 100, '#e74c3c', 'Red Key Card', 'keycard'));
+                this.entities.push(new Item(800, 800, '#3498db', 'Blue Key Card', 'keycard'));
+                this.entities.push(new Item(1400, 1400, '#2ecc71', 'Green Key Card', 'keycard'));
+
+                // Labels
+                this.roomLabels = [
+                    { x: 100, y: 100, text: 'Reception' },
+                    { x: 600, y: 100, text: 'Accounting' },
+                    { x: 1100, y: 100, text: 'HR' },
+                    { x: 1600, y: 100, text: 'Breakroom' },
+                    { x: 100, y: 1100, text: 'Legal' },
+                    { x: 1600, y: 1100, text: 'Server Room' }
+                ];
             }
 
             setupNPCs() {
@@ -400,12 +747,17 @@
                 npcData.forEach(data => {
                     this.entities.push(new NPC(data.x, data.y, data.color, data.name, data.role, data.traits));
                 });
+
+                // Alien King
+                this.alienKing = new AlienKing(1800, 1300);
+                this.entities.push(this.alienKing);
             }
 
             setupQuests() {
                 this.addQuest('bug_discovery', 'Talk to Alice about the claim system bug.', true);
                 this.addQuest('coffee_clue', 'Investigate the breakroom for Bob.', false);
                 this.addQuest('server_slime', 'Check the server room for "weird growth" for Kevin.', false);
+                this.addQuest('alien_king', 'Defeat the Alien King in the Server Room with the Confetti Cannon (F).', false);
             }
 
             addQuest(id, description, active = false) {
@@ -457,8 +809,8 @@
                 }
 
                 try {
-                    this.logDebug("Pinging Gemini 1.5 Flash...");
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                    this.logDebug("Pinging Gemini Flash Latest...");
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -490,7 +842,7 @@
                         this.handlePlayerDialog(input.value);
                         input.value = '';
                     }
-                    if (e.key === 'Escape') {
+                    if (e.code === 'KeyX') {
                         this.closeDialog();
                     }
                 });
@@ -559,6 +911,7 @@
                 this.isDialogOpen = true;
                 document.getElementById('dialogContainer').style.display = 'flex';
                 document.getElementById('characterName').innerText = npc.name + ' (' + npc.role + ')';
+                document.getElementById('controlsHint').innerText = "ENTER: SEND | X: CLOSE DIALOG";
 
                 if (!API_KEY) {
                     document.getElementById('dialogText').innerText = `Hello! I'm ${npc.name}. (Note: AI Dialogues are disabled because no API key is set. You can set it in the console or refresh to see the prompt.)`;
@@ -574,6 +927,7 @@
                 this.isDialogOpen = false;
                 this.activeNPC = null;
                 document.getElementById('dialogContainer').style.display = 'none';
+                document.getElementById('controlsHint').innerText = "WASD/ARROWS: MOVE | E/SPACE: TALK | ESC: MENU | F: FIRE CANNON";
             }
 
             async handlePlayerDialog(text) {
@@ -588,13 +942,15 @@
 
                 const systemPrompt = `You are ${this.activeNPC.name}, a ${this.activeNPC.role} in an alien-infested insurance office.
                 Your traits: ${this.activeNPC.traits}.
+                Memory of previous interactions: ${this.activeNPC.memory || "None"}.
                 The player is a software engineer investigating weird occurrences.
                 Keep responses short (1-3 sentences), in character, and slightly mysterious or corporate-dystopian.
+                IMPORTANT: At the end of your response, add a section starting with [MEMORY] followed by a 1-sentence summary of what you've learned or discussed that you should remember for later.
                 Do not break character. Do not mention being an AI.
                 Current Quests: ${this.quests.filter(q => q.active && !q.completed).map(q => q.description).join(", ")}.`;
 
                 try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -630,7 +986,14 @@
                         throw new Error("Empty response from AI. Possible safety block or technical issue.");
                     }
 
-                    const reply = data.candidates[0].content.parts[0].text;
+                    let reply = data.candidates[0].content.parts[0].text;
+
+                    // Extract memory
+                    const memoryMatch = reply.match(/\[MEMORY\](.*)/i);
+                    if (memoryMatch) {
+                        this.activeNPC.memory = memoryMatch[1].trim();
+                        reply = reply.replace(/\[MEMORY\].*/i, '').trim();
+                    }
 
                     // Update history
                     this.activeNPC.history.push({ role: 'user', text: sanitizedText });
@@ -669,12 +1032,15 @@
                 }
                 if (this.activeNPC.name === 'Kevin' && (lowerReply.includes('slime') || lowerReply.includes('server'))) {
                     this.completeQuest('server_slime');
+                    this.quests.find(q => q.id === 'alien_king').active = true;
+                    this.updateQuestLog();
                 }
             }
 
             update(deltaTime) {
                 super.update(deltaTime);
                 this.camera.follow(this.player);
+                this.updateFogOfWar();
             }
 
             draw() {
@@ -694,6 +1060,16 @@
                     }
                 }
 
+                // Draw room labels
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                this.ctx.font = 'bold 40px Arial';
+                this.ctx.textAlign = 'left';
+                if (this.roomLabels) {
+                    this.roomLabels.forEach(label => {
+                        this.ctx.fillText(label.text, label.x, label.y);
+                    });
+                }
+
                 // Draw entities sorted by Y for depth sorting
                 const sortedEntities = [...this.entities].sort((a, b) => (a.y + a.height) - (b.y + b.height));
                 sortedEntities.forEach(entity => {
@@ -701,6 +1077,16 @@
                 });
 
                 this.drawParticles();
+
+                // Draw Fog of War
+                this.ctx.fillStyle = '#000';
+                for (let r = 0; r < this.fogRows; r++) {
+                    for (let c = 0; c < this.fogCols; c++) {
+                        if (this.visibilityMap[r][c] === 0) {
+                            this.ctx.fillRect(c * this.fogTileSize, r * this.fogTileSize, this.fogTileSize, this.fogTileSize);
+                        }
+                    }
+                }
 
                 this.ctx.restore();
 
