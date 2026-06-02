@@ -96,6 +96,7 @@
             z-index: 2000;
             padding: 40px;
             text-align: center;
+            pointer-events: all;
         }
         .intro-content {
             max-width: 600px;
@@ -205,7 +206,7 @@
             <p>Welcome, Agent. The <b>Xylthid Union</b> has quietly infiltrated this insurance firm. They've replaced the board of directors with chitinous imposters and are using our claim systems to fund their Hive Mother.</p>
             <p>Your goal is to investigate the office, gather intel from the staff, and find a way into the <b>High-Security Server Room</b> where the Alien King is overseeing the final upload.</p>
             <p style="color: #fff; margin-top: 20px;">FIRST OBJECTIVE: Find the <b>Red Key Card</b> in the Reception area and talk to Alice in QA.</p>
-            <button class="intro-btn" onclick="document.getElementById('introOverlay').style.display='none'">START INVESTIGATION</button>
+            <button class="intro-btn" id="startInvestigationBtn">START INVESTIGATION</button>
         </div>
     </div>
 
@@ -570,20 +571,25 @@
                 window.removeEventListener('keydown', this.handleKeyDown);
                 window.addEventListener('keydown', (e) => {
                     if (this.isModalOpen || (this.isDialogOpen && document.activeElement === document.getElementById('dialogInput'))) {
-                        if (e.code === 'Escape') window.location.href = '../index.html';
-                        if (e.code === 'KeyX' && this.isDialogOpen) this.closeDialog();
+                        // In conversation mode, ESC doesn't exit the game
+                        if (e.code === 'Escape' && this.isDialogOpen) {
+                            this.closeDialog();
+                            return;
+                        }
+                        if (e.code === 'Escape' && this.isModalOpen) {
+                            // Don't exit if modal is open unless user really wants to
+                        }
                         return;
                     }
                     this.keys[e.code] = true;
                     if (e.code === 'Escape') window.location.href = '../index.html';
-                    if (e.code === 'KeyX' && this.isDialogOpen) this.closeDialog();
                 });
 
                 this.worldWidth = 2000;
                 this.worldHeight = 1500;
                 this.camera = new Camera(this.width, this.height, this.worldWidth, this.worldHeight);
                 this.isDialogOpen = false;
-                this.isModalOpen = false;
+                this.isModalOpen = true; // Start with intro overlay
                 this.activeNPC = null;
                 this.player = new OfficePlayer(60, 400);
                 this.entities.push(this.player);
@@ -601,22 +607,33 @@
                 this.fogCols = Math.ceil(this.worldWidth / this.fogTileSize);
                 this.fogRows = Math.ceil(this.worldHeight / this.fogTileSize);
                 this.visibilityMap = Array(this.fogRows).fill().map(() => Array(this.fogCols).fill(0)); // 0: hidden, 1: visited
+
+                // Pre-reveal starting area around (60, 400)
+                for (let r = 8; r <= 12; r++) {
+                    for (let c = 0; c <= 5; c++) {
+                        if (this.visibilityMap[r] && this.visibilityMap[r][c] !== undefined) {
+                            this.visibilityMap[r][c] = 1;
+                        }
+                    }
+                }
             }
 
             updateFogOfWar() {
-                const px = Math.floor(this.player.x / this.fogTileSize);
-                const py = Math.floor(this.player.y / this.fogTileSize);
-                const radius = 5;
+                if (!this.player) return;
+                const px = Math.floor((this.player.x + this.player.width / 2) / this.fogTileSize);
+                const py = Math.floor((this.player.y + this.player.height / 2) / this.fogTileSize);
+                const radius = 6;
 
                 for (let r = -radius; r <= radius; r++) {
                     for (let c = -radius; c <= radius; c++) {
                         const row = py + r;
                         const col = px + c;
                         if (row >= 0 && row < this.fogRows && col >= 0 && col < this.fogCols) {
+                            if (this.visibilityMap[row][col] === 1) continue;
                             const dist = Math.sqrt(r * r + c * c);
                             if (dist <= radius) {
-                                // Check if line of sight is blocked by a solid wall or closed door
-                                if (this.hasLineOfSight(this.player.x + 16, this.player.y + 16, (col + 0.5) * this.fogTileSize, (row + 0.5) * this.fogTileSize)) {
+                                // Immediate neighbors and tiles with LOS are revealed
+                                if (dist <= 1.5 || this.hasLineOfSight(this.player.x + 16, this.player.y + 16, (col + 0.5) * this.fogTileSize, (row + 0.5) * this.fogTileSize)) {
                                     this.visibilityMap[row][col] = 1;
                                 }
                             }
@@ -842,9 +859,6 @@
                         this.handlePlayerDialog(input.value);
                         input.value = '';
                     }
-                    if (e.code === 'KeyX') {
-                        this.closeDialog();
-                    }
                 });
 
                 // API Modal UI
@@ -879,6 +893,17 @@
                 const debugBtn = document.getElementById('debugBtn');
                 debugBtn.onclick = () => this.testConnection();
 
+                const startBtn = document.getElementById('startInvestigationBtn');
+                startBtn.onclick = () => {
+                    document.getElementById('introOverlay').style.display = 'none';
+                    this.playSound(1000, 0.1);
+                    // API_KEY check from engine context or global
+                    if (window.localStorage.getItem('GOOGLE_AI_KEY')) {
+                        this.isModalOpen = false;
+                    }
+                    window.focus();
+                };
+
                 window.addEventListener('keydown', (e) => {
                     if (e.key === 'Escape') {
                         document.getElementById('debugConsole').style.display = 'none';
@@ -911,7 +936,7 @@
                 this.isDialogOpen = true;
                 document.getElementById('dialogContainer').style.display = 'flex';
                 document.getElementById('characterName').innerText = npc.name + ' (' + npc.role + ')';
-                document.getElementById('controlsHint').innerText = "ENTER: SEND | X: CLOSE DIALOG";
+                document.getElementById('controlsHint').innerText = "ENTER: SEND | ESC: CLOSE DIALOG";
 
                 if (!API_KEY) {
                     document.getElementById('dialogText').innerText = `Hello! I'm ${npc.name}. (Note: AI Dialogues are disabled because no API key is set. You can set it in the console or refresh to see the prompt.)`;
@@ -1078,10 +1103,15 @@
 
                 this.drawParticles();
 
-                // Draw Fog of War
+                // Draw Fog of War - optimized to visible area
                 this.ctx.fillStyle = '#000';
-                for (let r = 0; r < this.fogRows; r++) {
-                    for (let c = 0; c < this.fogCols; c++) {
+                const startCol = Math.max(0, Math.floor(this.camera.x / this.fogTileSize));
+                const endCol = Math.min(this.fogCols, Math.ceil((this.camera.x + this.width) / this.fogTileSize));
+                const startRow = Math.max(0, Math.floor(this.camera.y / this.fogTileSize));
+                const endRow = Math.min(this.fogRows, Math.ceil((this.camera.y + this.height) / this.fogTileSize));
+
+                for (let r = startRow; r < endRow; r++) {
+                    for (let c = startCol; c < endCol; c++) {
                         if (this.visibilityMap[r][c] === 0) {
                             this.ctx.fillRect(c * this.fogTileSize, r * this.fogTileSize, this.fogTileSize, this.fogTileSize);
                         }
@@ -1096,8 +1126,8 @@
             }
         }
 
-        const game = new OfficeGame();
-        game.start();
+        window.game = new OfficeGame();
+        window.game.start();
     </script>
 </body>
 </html>
