@@ -17,11 +17,27 @@ class Game {
         this.highScore = parseInt(localStorage.getItem(`jnr_highScore_${this.gameId}`)) || 0;
         this.particles = [];
 
+        // Audio state
+        this.musicEnabled = localStorage.getItem('jnr_musicEnabled') !== 'false';
+        this.sfxEnabled = localStorage.getItem('jnr_sfxEnabled') !== 'false';
+
         window.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
             if (e.code === 'Escape') window.location.href = '../index.html';
         });
         window.addEventListener('keyup', (e) => this.keys[e.code] = false);
+
+        // Resume audio on first interaction
+        const resumeAudio = () => {
+            this.initAudio();
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+            window.removeEventListener('mousedown', resumeAudio);
+            window.removeEventListener('keydown', resumeAudio);
+        };
+        window.addEventListener('mousedown', resumeAudio);
+        window.addEventListener('keydown', resumeAudio);
 
         // Sound System
         this.audioCtx = null;
@@ -34,7 +50,7 @@ class Game {
     }
 
     playSound(freq, duration, type = 'sine', volume = 0.1) {
-        if (!this.audioCtx) return;
+        if (!this.audioCtx || !this.sfxEnabled) return;
         const osc = this.audioCtx.createOscillator();
         const gain = this.audioCtx.createGain();
         osc.type = type;
@@ -65,7 +81,9 @@ class Game {
         const playNext = (index) => {
             if (!this.isRunning || this.state !== 'playing' || !this.audioCtx) return;
             const note = melody[index];
-            this.playSound(note.f, note.d, 'triangle', 0.05);
+            if (this.musicEnabled) {
+                this.playSound(note.f, note.d, 'triangle', 0.05);
+            }
             setTimeout(() => playNext((index + 1) % melody.length), note.d * 1000);
         };
         this.initAudio();

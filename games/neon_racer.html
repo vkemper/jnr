@@ -46,13 +46,30 @@
                 super(180, 500, 45, 80, '#00e436');
                 this.speed = 7;
                 this.exhaustTimer = 0;
+                this.steerSoundTimer = 0;
             }
             update(game, deltaTime) {
-                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.vx = -this.speed;
-                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.vx = this.speed;
+                const dtScale = deltaTime / 16.67;
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) {
+                    this.vx = -this.speed * dtScale;
+                    this.steerSoundTimer += deltaTime;
+                    if (this.steerSoundTimer > 100) {
+                        game.playSound(200, 0.05, 'sine', 0.02);
+                        this.steerSoundTimer = 0;
+                    }
+                } else if (game.keys['ArrowRight'] || game.keys['KeyD']) {
+                    this.vx = this.speed * dtScale;
+                    this.steerSoundTimer += deltaTime;
+                    if (this.steerSoundTimer > 100) {
+                        game.playSound(200, 0.05, 'sine', 0.02);
+                        this.steerSoundTimer = 0;
+                    }
+                } else {
+                    this.steerSoundTimer = 0;
+                }
 
                 this.x += this.vx;
-                this.vx *= 0.8;
+                this.vx *= Math.pow(0.8, dtScale);
 
                 if (this.x < 60) this.x = 60;
                 if (this.x > game.width - 105) this.x = game.width - 105;
@@ -141,6 +158,7 @@
                 this.wigglePhase = Math.random() * Math.PI * 2;
             }
             update(game, deltaTime) {
+                const dtScale = deltaTime / 16.67;
                 // If stationary, they move with the road scroll
                 let effectiveVy = this.vy === 0 ? game.scrollSpeed : this.vy;
 
@@ -165,10 +183,10 @@
                     });
                 }
 
-                this.y += effectiveVy;
+                this.y += effectiveVy * dtScale;
 
                 if (this.isWiggly) {
-                    this.x += Math.sin(this.y / 50 + this.wigglePhase) * 3;
+                    this.x += Math.sin(this.y / 50 + this.wigglePhase) * 3 * dtScale;
                 }
 
                 if (this.y > game.height + 150) {
@@ -227,6 +245,11 @@
                 this.roadOffset = 0;
                 this.sideObjects = [];
                 this.timeElapsed = 0;
+
+                this.startMusic([
+                    {f: 146.83, d: 0.2}, {f: 146.83, d: 0.2}, {f: 293.66, d: 0.4},
+                    {f: 220.00, d: 0.2}, {f: 220.00, d: 0.2}, {f: 440.00, d: 0.4}
+                ]);
             }
             update(deltaTime) {
                 const difficultyFactor = Math.min(1, this.timeElapsed / 60000);
@@ -259,7 +282,8 @@
                 }
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
 
-                this.roadOffset = (this.roadOffset + this.scrollSpeed) % 80;
+                const dtScale = deltaTime / 16.67;
+                this.roadOffset = (this.roadOffset + this.scrollSpeed * dtScale) % 80;
 
                 if (Math.random() < 0.05) {
                     this.sideObjects.push({x: 15, y: -50, type: 'tree', s: 1 + Math.random()});
@@ -270,7 +294,7 @@
                     this.sideObjects.push({x: this.width - 10, y: -100, type: 'lamp'});
                 }
 
-                this.sideObjects.forEach(obj => obj.y += this.scrollSpeed);
+                this.sideObjects.forEach(obj => obj.y += this.scrollSpeed * dtScale);
                 this.sideObjects = this.sideObjects.filter(obj => obj.y < this.height + 100);
             }
             draw() {
@@ -336,12 +360,6 @@
         }
 
         const game = new RacerGame();
-        document.body.addEventListener('keydown', () => {
-            game.startMusic([
-                {f: 146.83, d: 0.2}, {f: 146.83, d: 0.2}, {f: 293.66, d: 0.4},
-                {f: 220.00, d: 0.2}, {f: 220.00, d: 0.2}, {f: 440.00, d: 0.4}
-            ]);
-        }, { once: true });
         game.start();
     </script>
 </body>
