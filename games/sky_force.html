@@ -35,7 +35,7 @@
     </style>
 </head>
 <body>
-    <div class="ui">SCORE: <span id="score">0</span> | BEST: <span id="best">0</span></div>
+    <div class="ui">SCORE: <span id="score">0</span> | AMMO: <span id="ammo">1000</span> | BEST: <span id="best">0</span></div>
     <canvas id="gameCanvas" width="400" height="600"></canvas>
     <a href="../index.html" class="back-link">ESC TO MENU</a>
 
@@ -46,8 +46,9 @@
                 super(x, y, 6, 12, '#fff');
                 this.vy = -12;
             }
-            update(game) {
-                this.y += this.vy;
+            update(game, deltaTime) {
+                const dtScale = deltaTime / 16.67;
+                this.y += this.vy * dtScale;
                 if (this.y < -20) this.markedForDeletion = true;
 
                 game.entities.forEach(e => {
@@ -87,10 +88,11 @@
                 this.shootTimer = 0;
             }
             update(game, deltaTime) {
-                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed;
-                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed;
-                if (game.keys['ArrowUp'] || game.keys['KeyW']) this.y -= this.speed;
-                if (game.keys['ArrowDown'] || game.keys['KeyS']) this.y += this.speed;
+                const dtScale = deltaTime / 16.67;
+                if (game.keys['ArrowLeft'] || game.keys['KeyA']) this.x -= this.speed * dtScale;
+                if (game.keys['ArrowRight'] || game.keys['KeyD']) this.x += this.speed * dtScale;
+                if (game.keys['ArrowUp'] || game.keys['KeyW']) this.y -= this.speed * dtScale;
+                if (game.keys['ArrowDown'] || game.keys['KeyS']) this.y += this.speed * dtScale;
 
                 if (this.x < 0) this.x = 0;
                 if (this.x > game.width - this.width) this.x = game.width - this.width;
@@ -98,8 +100,10 @@
                 if (this.y > game.height - this.height) this.y = game.height - this.height;
 
                 this.shootTimer += deltaTime;
-                if ((game.keys['Space'] || game.keys['KeyZ']) && this.shootTimer > 180) {
+                if ((game.keys['Space'] || game.keys['KeyZ']) && this.shootTimer > 180 && game.ammo > 0) {
                     game.entities.push(new Bullet(this.x + this.width / 2 - 3, this.y));
+                    game.ammo--;
+                    document.getElementById('ammo').innerText = game.ammo;
                     this.shootTimer = 0;
                     game.playSound(800, 0.05, 'sine');
                 }
@@ -145,10 +149,16 @@
                 this.vy = type === 'heli' ? 2 : 5;
                 this.phase = Math.random() * Math.PI * 2;
             }
-            update(game) {
-                this.y += this.vy;
+            update(game, deltaTime) {
+                const dtScale = deltaTime / 16.67;
+                this.y += this.vy * dtScale;
                 if (this.type === 'heli') {
-                    this.x += Math.sin(this.y / 60 + this.phase) * 3;
+                    this.x += Math.sin(this.y / 60 + this.phase) * 3 * dtScale;
+                    this.x = Math.max(10, Math.min(game.width - this.width - 10, this.x));
+                }
+                if (this.y > game.height) {
+                    game.state = 'lost';
+                    game.playDeathSound();
                 }
                 if (this.y > game.height + 100) this.markedForDeletion = true;
             }
@@ -181,6 +191,53 @@
             }
         }
 
+        class Tower extends Enemy {
+            constructor(x, y) {
+                super(x, 'tower');
+                this.y = y;
+                this.health = 5;
+                this.vy = 2; // Matches island speed
+                this.shootTimer = 0;
+                this.color = '#555';
+            }
+            update(game, deltaTime) {
+                const dtScale = deltaTime / 16.67;
+                this.y += this.vy * dtScale;
+                if (this.y > game.height) {
+                    game.state = 'lost';
+                    game.playDeathSound();
+                }
+                this.shootTimer += deltaTime;
+                if (this.shootTimer > 2000) {
+                    const b = new Bullet(this.x + this.width / 2 - 3, this.y + this.height);
+                    b.vy = 6;
+                    b.color = '#ff0';
+                    b.update = function(game, dt) {
+                        const s = dt / 16.67;
+                        this.y += this.vy * s;
+                        if (this.y > game.height) this.markedForDeletion = true;
+                        // Tower bullet hits player
+                        const p = game.entities.find(e => e instanceof PlayerPlane);
+                        if (p && this.collidesWith(p)) {
+                            game.state = 'lost';
+                            game.playDeathSound();
+                        }
+                    };
+                    game.entities.push(b);
+                    this.shootTimer = 0;
+                }
+                if (this.y > game.height + 200) this.markedForDeletion = true;
+            }
+            draw(ctx) {
+                ctx.fillStyle = '#444';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.fillStyle = '#666';
+                ctx.fillRect(this.x + 10, this.y - 10, this.width - 20, 10);
+                ctx.fillStyle = '#f00'; // Eye/Sensor
+                ctx.fillRect(this.x + 15, this.y, 14, 10);
+            }
+        }
+
         class SkyGame extends Game {
             constructor() {
                 super('gameCanvas', { gravity: 0, friction: 1, gameId: 'sky_force' });
@@ -190,27 +247,36 @@
                 this.entities.push(new PlayerPlane());
                 this.islands = [];
                 this.oceanOffset = 0;
+                this.ammo = 1000;
+                this.spawnThreshold = 1200;
             }
             update(deltaTime) {
                 super.update(deltaTime);
-                this.oceanOffset = (this.oceanOffset + 1) % 40;
+                const dtScale = deltaTime / 16.67;
+                this.oceanOffset = (this.oceanOffset + 1 * dtScale) % 40;
                 this.spawnTimer += deltaTime;
-                if (this.spawnTimer > 1200) {
+                this.spawnThreshold = Math.max(400, 1200 - this.score / 50);
+                if (this.spawnTimer > this.spawnThreshold) {
                     const x = 20 + Math.random() * (this.width - 64);
                     const type = Math.random() > 0.75 ? 'heli' : 'plane';
                     this.entities.push(new Enemy(x, type));
                     this.spawnTimer = 0;
                 }
                 if (Math.random() < 0.015) {
+                    const islX = Math.random() * this.width;
+                    const islY = -150;
                     this.islands.push({
-                        x: Math.random() * this.width,
-                        y: -150,
+                        x: islX,
+                        y: islY,
                         size: 40 + Math.random() * 80,
                         color: `rgb(0, ${120 + Math.random() * 60}, 0)`,
                         sand: `rgb(${200 + Math.random() * 55}, 180, 100)`
                     });
+                    if (Math.random() < 0.3) {
+                        this.entities.push(new Tower(islX - 22, islY - 22));
+                    }
                 }
-                this.islands.forEach(isl => isl.y += 2);
+                this.islands.forEach(isl => isl.y += 2 * dtScale);
                 this.islands = this.islands.filter(isl => isl.y < this.height + 150);
                 this.entities = this.entities.filter(e => !e.markedForDeletion);
             }

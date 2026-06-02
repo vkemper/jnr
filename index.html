@@ -121,7 +121,9 @@
     <div class="instructions">
         <span class="key-hint">UP/DOWN/LEFT/RIGHT</span> TO NAVIGATE<br>
         <span class="key-hint">ENTER</span> TO PLAY<br>
-        <span class="key-hint">ESC</span> TO RETURN TO MENU
+        <span class="key-hint">ESC</span> TO RETURN TO MENU<br>
+        <span class="key-hint">[M]</span> MUSIC: <span id="musicStatus">ON</span> |
+        <span class="key-hint">[S]</span> SFX: <span id="sfxStatus">ON</span>
     </div>
 
     <script>
@@ -139,32 +141,48 @@
             });
         }
 
+        function updateAudioUI() {
+            const musicOn = localStorage.getItem('jnr_musicEnabled') !== 'false';
+            const sfxOn = localStorage.getItem('jnr_sfxEnabled') !== 'false';
+            document.getElementById('musicStatus').innerText = musicOn ? 'ON' : 'OFF';
+            document.getElementById('sfxStatus').innerText = sfxOn ? 'ON' : 'OFF';
+        }
+
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+            if (e.key === 'ArrowDown') {
                 currentIndex = (currentIndex + 2) % links.length;
                 updateSelection();
                 e.preventDefault();
-            } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+            } else if (e.key === 'ArrowUp') {
                 currentIndex = (currentIndex - 2 + links.length) % links.length;
                 updateSelection();
                 e.preventDefault();
-            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+            } else if (e.key === 'ArrowRight') {
                 currentIndex = (currentIndex % 2 === 0) ? currentIndex + 1 : currentIndex - 1;
                 if (currentIndex >= links.length) currentIndex = links.length - 1;
                 updateSelection();
                 e.preventDefault();
-            } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+            } else if (e.key === 'ArrowLeft') {
                 currentIndex = (currentIndex % 2 === 1) ? currentIndex - 1 : currentIndex + 1;
                 if (currentIndex >= links.length) currentIndex = links.length - 1;
                 updateSelection();
                 e.preventDefault();
             } else if (e.key === 'Enter') {
                 window.location.href = links[currentIndex].href;
+            } else if (e.key.toLowerCase() === 'm') {
+                const current = localStorage.getItem('jnr_musicEnabled') !== 'false';
+                localStorage.setItem('jnr_musicEnabled', !current);
+                updateAudioUI();
+            } else if (e.key.toLowerCase() === 's') {
+                const current = localStorage.getItem('jnr_sfxEnabled') !== 'false';
+                localStorage.setItem('jnr_sfxEnabled', !current);
+                updateAudioUI();
             }
         });
 
-        // Initialize selection
+        // Initialize selection and UI
         updateSelection();
+        updateAudioUI();
 
         // Mouse hover support
         links.forEach((link, idx) => {

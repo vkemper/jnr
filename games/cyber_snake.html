@@ -30,6 +30,12 @@
                 this.moveTimer = 0;
                 this.moveInterval = 150;
                 this.gridOffset = 0;
+                this.tokensCaught = 0;
+
+                this.startMusic([
+                    {f: 220, d: 0.2}, {f: 261.63, d: 0.2}, {f: 329.63, d: 0.2}, {f: 220, d: 0.2},
+                    {f: 293.66, d: 0.2}, {f: 349.23, d: 0.2}, {f: 440, d: 0.4}
+                ]);
             }
             spawnFood() {
                 return {
@@ -62,9 +68,12 @@
                     this.snake.unshift(head);
                     if (head.x === this.food.x && head.y === this.food.y) {
                         this.score += 10;
+                        this.tokensCaught++;
                         document.getElementById('score').innerText = this.score;
                         this.food = this.spawnFood();
-                        this.moveInterval = Math.max(60, this.moveInterval - 2);
+                        if (this.tokensCaught % 5 === 0) {
+                            this.moveInterval = Math.max(60, this.moveInterval - 10);
+                        }
                         this.playSound(800, 0.05);
                         for(let i=0; i<10; i++) this.addParticle(head.x * this.gridSize + 10, head.y * this.gridSize + 10, '#ff004d');
                     } else {
